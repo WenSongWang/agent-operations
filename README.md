@@ -67,7 +67,32 @@ conn.close()
 
 ```powershell
 python examples/quickstart.py
+python examples/openai_wrap.py
 ```
+
+### 2b. 更省事：用 `TracedRun`（推荐）
+
+不用手写 `running` / 终态时间戳；OpenAI 响应可直接抽 token：
+
+```python
+from agentops import connect, TracedRun
+
+conn = connect("./data/agentops.db")
+with TracedRun(
+    conn,
+    project="demo",
+    agent="assistant",
+    environment="dev",
+    name="chat",
+    task_input="Say hi",
+) as tr:
+    # resp = client.chat.completions.create(...)
+    # tr.record_openai(resp, output_text=resp.choices[0].message.content)
+    tr.finish(task_output="hi")
+conn.close()
+```
+
+异常退出时会自动记成 `status=error`。完整示例见 `examples/openai_wrap.py`。
 
 ### 3. 启动本机服务与页面
 

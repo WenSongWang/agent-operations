@@ -18,3 +18,10 @@ SQLite ingest · list/filter · latency/tokens/cost summary (p50/p95/p99) · too
 | 20 | Auth / multi-tenant | Done: API keys + project ACL; non-loopback bind requires keys |
 
 Still open if needed later: Postgres backend, Kafka broker producer/consumer, alert email, richer multi-tenant UI login.
+
+## Usability
+
+| Item | Notes |
+| :--- | :--- |
+| `TracedRun` | Done: context manager + OpenAI usage helper (`examples/openai_wrap.py`) |
+| PyPI release | Next candidate: tag `v0.1.0` |

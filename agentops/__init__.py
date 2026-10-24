@@ -8,16 +8,19 @@ from agentops.query import (
     list_tool_failures,
     summarize_runs,
 )
+from agentops.trace import TracedRun, usage_from_openai
 
 __version__ = "0.1.0"
 
 __all__ = [
     "IngestError",
+    "TracedRun",
     "connect",
     "get_run",
     "ingest_run",
     "list_runs",
     "list_tool_failures",
     "summarize_runs",
+    "usage_from_openai",
     "__version__",
 ]
