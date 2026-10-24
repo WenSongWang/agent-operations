@@ -26,3 +26,4 @@ Still open if needed later: Postgres backend, Kafka broker producer/consumer, al
 | `TracedRun` | Done: context manager + OpenAI usage helper (`examples/openai_wrap.py`) |
 | Git tag `v0.1.0` | Done: see `CHANGELOG.md` |
 | PyPI upload | Done: https://pypi.org/project/agent-operations/0.1.0/ |
+| Agentic-Loop adapter | Done: `AgentOpsJournal` + `examples/agentic_loop_wrap.py` |

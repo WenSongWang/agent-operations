@@ -95,6 +95,31 @@ conn.close()
 
 异常退出时会自动记成 `status=error`。完整示例见 `examples/openai_wrap.py`。
 
+### 2c. 接 Agentic-Loop
+
+```powershell
+pip install "agent-operations[agentic-loop]"
+```
+
+把 `AgentOpsJournal` 传给 `run_loop(..., journal=...)`（与官方 JSONL journal 同接口）：
+
+```python
+from agentops import connect
+from agentops.adapters import AgentOpsJournal
+
+conn = connect("./data/agentops.db")
+journal = AgentOpsJournal(
+    conn,
+    project="demo",
+    agent="assistant",
+    environment="dev",
+    runs_dir="./.agentic-loop/runs",  # 可选：同时写 agentic-loop JSONL
+)
+# terminal = run_loop(messages, tools=tools, llm=llm, journal=journal)
+```
+
+可运行示意：`python examples/agentic_loop_wrap.py`。
+
 ### 3. 启动本机服务与页面
 
 ```powershell
