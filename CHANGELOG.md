@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.3] - 2026-10-24
+
+### Added
+
+- Optional Kafka producer (`AGENTOPS_KAFKA_BOOTSTRAP`, extra `[kafka]`)
+- Optional Postgres via `connect("postgresql://…")` / `agentops-http --db` / `AGENTOPS_DATABASE_URL` (extra `[postgres]`)
+- Optional SMTP email alerts (`AGENTOPS_ALERT_EMAIL` + `AGENTOPS_SMTP_*`)
+- README: uv local development workflow
+
 ## [0.1.2] - 2026-10-24
 
 ### Added

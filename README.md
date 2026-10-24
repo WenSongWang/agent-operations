@@ -305,7 +305,7 @@ agentops-http --host 0.0.0.0 --port 8787
 | 非全链路 APM | 聚焦 agent run + steps，不是通用分布式 tracing |
 | Kafka | JSONL outbox + 可选 producer；无内置 broker / consumer |
 | 页面 | 只读调试页；可填 API key 后查询 |
-| 安装渠道 | PyPI：`pip install agent-operations`；版本见 [PyPI](https://pypi.org/project/agent-operations/) / tag `v0.1.2` |
+| 安装渠道 | PyPI：`pip install agent-operations`；版本见 [PyPI](https://pypi.org/project/agent-operations/) / tag `v0.1.3` |
 
 更细的后续项见 [ROADMAP.md](./ROADMAP.md)。
 
@@ -327,7 +327,7 @@ agentops-http
 ```powershell
 uv venv .venv-release --clear
 .\.venv-release\Scripts\Activate.ps1
-uv pip install "agent-operations==0.1.2"
+uv pip install "agent-operations==0.1.3"
 ```
 
 库入口常用符号：`connect`, `ingest_run`, `list_runs`, `summarize_runs`, `get_run`, `list_tool_failures`, `TracedRun`。
