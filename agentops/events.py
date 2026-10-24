@@ -1,4 +1,4 @@
-"""Run event envelope and optional JSONL outbox (Kafka-ready, no broker)."""
+"""Run event envelope, JSONL outbox, and optional Kafka producer."""
 
 from __future__ import annotations
 
@@ -6,10 +6,15 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 EVENT_TYPE = "agentops.run"
 EVENT_VERSION = 1
+DEFAULT_KAFKA_TOPIC = "agentops.run"
+
+# Tests may replace this; signature: (topic, value_bytes, bootstrap, client_id) -> None
+KafkaSender = Callable[[str, bytes, str, str], None]
+_kafka_sender: KafkaSender | None = None
 
 
 def make_run_event(
@@ -19,7 +24,7 @@ def make_run_event(
     status: str,
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Build the v1 run event that a future Kafka producer would publish."""
+    """Build the v1 run event published to outbox / Kafka."""
     return {
         "type": EVENT_TYPE,
         "v": EVENT_VERSION,
@@ -52,6 +57,55 @@ def append_outbox(
     return target
 
 
+def kafka_bootstrap() -> str | None:
+    raw = os.environ.get("AGENTOPS_KAFKA_BOOTSTRAP", "").strip()
+    return raw or None
+
+
+def set_kafka_sender(sender: KafkaSender | None) -> None:
+    """Override Kafka send for tests. Pass None to restore the default client."""
+    global _kafka_sender
+    _kafka_sender = sender
+
+
+def _default_kafka_send(
+    topic: str, value: bytes, bootstrap: str, client_id: str
+) -> None:
+    try:
+        from kafka import KafkaProducer  # type: ignore[import-untyped]
+    except ImportError as exc:  # pragma: no cover - exercised when extra missing
+        raise ImportError(
+            "Kafka publish needs kafka-python; "
+            'pip install "agent-operations[kafka]"'
+        ) from exc
+    producer = KafkaProducer(
+        bootstrap_servers=[s.strip() for s in bootstrap.split(",") if s.strip()],
+        client_id=client_id,
+    )
+    try:
+        future = producer.send(topic, value)
+        future.get(timeout=10)
+    finally:
+        producer.close()
+
+
+def publish_kafka(event: dict[str, Any]) -> bool:
+    """Publish event JSON to Kafka. No-op unless AGENTOPS_KAFKA_BOOTSTRAP is set."""
+    bootstrap = kafka_bootstrap()
+    if not bootstrap:
+        return False
+    topic = os.environ.get("AGENTOPS_KAFKA_TOPIC", DEFAULT_KAFKA_TOPIC).strip() or (
+        DEFAULT_KAFKA_TOPIC
+    )
+    client_id = os.environ.get("AGENTOPS_KAFKA_CLIENT_ID", "agentops").strip() or (
+        "agentops"
+    )
+    value = json.dumps(event, ensure_ascii=False, default=str).encode("utf-8")
+    sender = _kafka_sender or _default_kafka_send
+    sender(topic, value, bootstrap, client_id)
+    return True
+
+
 def emit_run_event(
     *,
     action: str,
@@ -60,9 +114,10 @@ def emit_run_event(
     payload: dict[str, Any],
     outbox: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Create event and optionally append to the outbox file."""
+    """Create event, optionally append outbox and/or publish to Kafka."""
     event = make_run_event(
         action=action, run_id=run_id, status=status, payload=payload
     )
     append_outbox(event, outbox)
+    publish_kafka(event)
     return event

@@ -257,13 +257,17 @@ agentops-alerts --db .\data\agentops.db
 
 有告警时退出码 `2`。`--dry-run` 只打印不 POST。
 
-### 事件 outbox（Kafka 预留）
+### 事件 outbox / Kafka
 
 ```powershell
 $env:AGENTOPS_EVENT_OUTBOX = ".\data\events.jsonl"
+# 可选：同时发到 Kafka（需 pip install "agent-operations[kafka]"）
+$env:AGENTOPS_KAFKA_BOOTSTRAP = "localhost:9092"
+# $env:AGENTOPS_KAFKA_TOPIC = "agentops.run"          # 默认
+# $env:AGENTOPS_KAFKA_CLIENT_ID = "agentops"          # 默认
 ```
 
-每次成功写入追加一行 `agentops.run` v1 事件（`create` / `finalize`）。
+每次成功写入追加一行 `agentops.run` v1 事件（`create` / `finalize`）；若配置了 bootstrap 则再 publish 同一 JSON。
 
 ### API Key（外网绑定前必配）
 
@@ -285,7 +289,7 @@ agentops-http --host 0.0.0.0 --port 8787
 | SQLite | 默认单机文件库；多机共享库尚未提供（Postgres 在路线图） |
 | 自报数据 | 延迟 / token / 费用依赖调用方或估算，不是云厂商账单 |
 | 非全链路 APM | 聚焦 agent run + steps，不是通用分布式 tracing |
-| Kafka | 目前只有 JSONL outbox，没有内置 broker |
+| Kafka | JSONL outbox + 可选 producer；无内置 broker / consumer |
 | 页面 | 只读调试页；可填 API key 后查询 |
 | 安装渠道 | PyPI：`pip install agent-operations`；版本见 [PyPI](https://pypi.org/project/agent-operations/) / tag `v0.1.2` |
 
