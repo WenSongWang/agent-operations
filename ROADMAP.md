@@ -10,14 +10,14 @@ SQLite ingest · list/filter · latency/tokens/cost summary (p50/p95/p99) · too
 | :--- | :--- | :--- |
 | 13 | In-progress runs | Done: `running` → final update on same `id` |
 | 14 | Redaction | Done: `AGENTOPS_REDACT` / `redact=` → off\|hash\|drop |
-| 15 | Postgres | Skipped for now (SQLite enough for single-host) |
+| 15 | Postgres | Done: `connect("postgresql://…")` + `?` compat; HTTP DSN switch later |
 | 16 | Pricing table | Done: built-in rates + `AGENTOPS_PRICING_PATH`; caller `cost_usd` wins |
 | 17 | Alerts | Done: webhook on failure rate / p95 / cost (email later) |
 | 18 | Kafka upgrade | Done: JSONL outbox + optional producer (`AGENTOPS_KAFKA_BOOTSTRAP`); consumer later |
 | 19 | Eval / quality | Done: `quality_score` (0–1), `thumbs` up/down, prompt/template version |
 | 20 | Auth / multi-tenant | Done: API keys + project ACL; non-loopback bind requires keys |
 
-Still open if needed later: Postgres backend, Kafka consumer, alert email, richer multi-tenant UI login.
+Still open if needed later: HTTP/`agentops-http` Postgres DSN switch, Kafka consumer, alert email, richer multi-tenant UI login.
 
 ## Usability
 

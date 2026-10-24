@@ -6,8 +6,14 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from agentops.db import connect
+from agentops.db import (
+    PgCompatConnection,
+    _qmark_sql,
+    connect,
+    is_unique_violation,
+)
 
 
 class TestDb(unittest.TestCase):
@@ -84,6 +90,37 @@ class TestDb(unittest.TestCase):
             self.assertGreaterEqual(n, 2)
         finally:
             again.close()
+
+    def test_qmark_sql(self) -> None:
+        self.assertEqual(
+            _qmark_sql("SELECT * FROM runs WHERE id = ? AND project = ?"),
+            "SELECT * FROM runs WHERE id = %s AND project = %s",
+        )
+
+    def test_is_unique_violation_sqlite(self) -> None:
+        self.assertTrue(is_unique_violation(sqlite3.IntegrityError("unique")))
+        self.assertFalse(is_unique_violation(ValueError("nope")))
+
+    def test_pg_compat_begin_and_qmark(self) -> None:
+        raw = mock.MagicMock()
+        raw.cursor.return_value = "cursor"
+        raw.execute.return_value = "exec"
+        pg = PgCompatConnection(raw)
+        self.assertEqual(pg.execute("BEGIN"), "cursor")
+        raw.execute.assert_not_called()
+        pg.execute("SELECT * FROM runs WHERE id = ?", ("r1",))
+        raw.execute.assert_called_once_with(
+            "SELECT * FROM runs WHERE id = %s", ("r1",)
+        )
+
+    def test_connect_routes_postgres_dsn(self) -> None:
+        sentinel = object()
+        with mock.patch(
+            "agentops.db.connect_postgres", return_value=sentinel
+        ) as m:
+            out = connect("postgresql://localhost/agentops")
+        self.assertIs(out, sentinel)
+        m.assert_called_once_with("postgresql://localhost/agentops")
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
+from agentops.db import is_unique_violation
 from agentops.events import emit_run_event
 from agentops.metrics import compute_run_metrics
 from agentops.redact import apply_to_run_fields, apply_to_step, resolve_mode
@@ -314,11 +315,10 @@ def ingest_run(
     except IngestError:
         conn.rollback()
         raise
-    except sqlite3.IntegrityError as exc:
+    except Exception as exc:
         conn.rollback()
-        raise IngestError(f"duplicate run id: {run_id!r}") from exc
-    except Exception:
-        conn.rollback()
+        if is_unique_violation(exc):
+            raise IngestError(f"duplicate run id: {run_id!r}") from exc
         raise
 
     if event_action is not None:

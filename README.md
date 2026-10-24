@@ -34,10 +34,13 @@ python -m unittest discover -s tests -v
 
 ### 2. 用 Python 写入一条 run
 
+默认 SQLite 文件；Postgres 时把路径换成 DSN（需 `pip install "agent-operations[postgres]"`）：
+
 ```python
 from agentops import connect, ingest_run
 
 conn = connect("./data/agentops.db")
+# conn = connect("postgresql://user:pass@localhost:5432/agentops")
 ingest_run(conn, {
     "id": "run-001",
     "project": "demo",
@@ -286,7 +289,7 @@ agentops-http --host 0.0.0.0 --port 8787
 | 限制 | 说明 |
 | :--- | :--- |
 | Alpha | 接口可能继续演进；生产使用请自行评估 |
-| SQLite | 默认单机文件库；多机共享库尚未提供（Postgres 在路线图） |
+| DB | 默认 SQLite；也可 `connect("postgresql://…")`（需 `pip install "agent-operations[postgres]"`）；`agentops-http` 仍默认文件路径 |
 | 自报数据 | 延迟 / token / 费用依赖调用方或估算，不是云厂商账单 |
 | 非全链路 APM | 聚焦 agent run + steps，不是通用分布式 tracing |
 | Kafka | JSONL outbox + 可选 producer；无内置 broker / consumer |
