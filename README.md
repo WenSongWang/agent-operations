@@ -129,6 +129,27 @@ journal = AgentOpsJournal(
 
 可运行示意：`python examples/agentic_loop_wrap.py`。
 
+### 2d. 接 LangGraph
+
+```python
+from agentops import connect
+from agentops.adapters.langgraph import traced_invoke
+
+conn = connect("./data/agentops.db")
+result = traced_invoke(
+    app,  # any object with .invoke / use traced_ainvoke for .ainvoke
+    {"messages": [...]},
+    conn=conn,
+    project="demo",
+    agent="support-bot",
+    environment="dev",
+    name="support",
+    config={"configurable": {"thread_id": "1"}},
+)
+```
+
+示意（无 LLM）：`python examples/langgraph_wrap.py`。
+
 ### 3. 启动本机服务与页面
 
 ```powershell

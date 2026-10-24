@@ -29,3 +29,4 @@ Still open if needed later: Postgres backend, Kafka broker producer/consumer, al
 | Agentic-Loop adapter | Done: `AgentOpsJournal` + `examples/agentic_loop_wrap.py` |
 | Live OpenAI example | Done: `examples/openai_live.py` (env `OPENAI_API_KEY`) |
 | Debug page API key | Done: localStorage + `X-API-Key` on fetches |
+| LangGraph adapter | Done: `traced_invoke` / `traced_ainvoke` |

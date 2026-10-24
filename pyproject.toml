@@ -27,6 +27,7 @@ dependencies = []
 dev = []
 agentic-loop = ["agentic-loop>=0.3.0"]
 openai = ["openai>=1.40.0"]
+langgraph = ["langgraph>=0.2.0"]
 
 [project.urls]
 Homepage = "https://github.com/WenSongWang/agent-operations"
