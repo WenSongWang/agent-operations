@@ -24,3 +24,5 @@ python -m agentops.http
 ```
 
 Default DB: `./data/agentops.db`
+
+Redaction (optional): set `AGENTOPS_REDACT=off|hash|drop`, or pass `redact=` to `ingest_run`. Affects `task_input` / `task_output`, step `input` / `output` / `traceback`, and `tags.end_user_id`.

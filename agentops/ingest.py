@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from agentops.metrics import compute_run_metrics
+from agentops.redact import apply_to_run_fields, apply_to_step, resolve_mode
 
 REQUIRED = (
     "id",
@@ -164,6 +165,7 @@ def _build_row(
     steps: list[dict[str, Any]],
     *,
     ingested_at: str,
+    redact_mode: str,
 ) -> dict[str, Any]:
     derived = compute_run_metrics(payload, steps)
     row: dict[str, Any] = {k: payload[k] for k in REQUIRED}
@@ -177,11 +179,19 @@ def _build_row(
     task_in, task_in_trunc = _truncate_text(payload.get("task_input"))
     task_out, task_out_trunc = _truncate_text(payload.get("task_output"))
     extra, extra_trunc = _truncate_text(payload.get("extra"))
-    row["task_input"] = task_in
-    row["task_input_truncated"] = task_in_trunc
-    row["task_output"] = task_out
-    row["task_output_truncated"] = task_out_trunc
-    row["tags"] = _as_json_text(payload.get("tags"))
+    redacted = apply_to_run_fields(
+        task_input=task_in,
+        task_input_truncated=task_in_trunc,
+        task_output=task_out,
+        task_output_truncated=task_out_trunc,
+        tags=payload.get("tags"),
+        mode=redact_mode,
+    )
+    row["task_input"] = redacted["task_input"]
+    row["task_input_truncated"] = redacted["task_input_truncated"]
+    row["task_output"] = redacted["task_output"]
+    row["task_output_truncated"] = redacted["task_output_truncated"]
+    row["tags"] = _as_json_text(redacted["tags"])
     row["extra"] = extra
     row["extra_truncated"] = extra_trunc
     row["ingested_at"] = ingested_at
@@ -207,8 +217,21 @@ def _insert_run_and_steps(
         )
 
 
-def ingest_run(conn: sqlite3.Connection, payload: dict[str, Any]) -> str:
-    """Insert a run, or finalize an existing running run. Returns run id."""
+def ingest_run(
+    conn: sqlite3.Connection,
+    payload: dict[str, Any],
+    *,
+    redact: str | None = None,
+) -> str:
+    """Insert a run, or finalize an existing running run. Returns run id.
+
+    redact: off | hash | drop (default from AGENTOPS_REDACT, else off).
+    """
+    try:
+        redact_mode = resolve_mode(redact)
+    except ValueError as exc:
+        raise IngestError(str(exc)) from exc
+
     missing = [k for k in REQUIRED if not payload.get(k)]
     if missing:
         raise IngestError(f"missing required fields: {', '.join(missing)}")
@@ -232,7 +255,10 @@ def ingest_run(conn: sqlite3.Connection, payload: dict[str, Any]) -> str:
     if finish is not None and finish not in FINISH_REASONS:
         raise IngestError(f"invalid finish_reason: {finish!r}")
 
-    steps = _normalize_steps(payload.get("steps"))
+    steps = [
+        apply_to_step(step, redact_mode)
+        for step in _normalize_steps(payload.get("steps"))
+    ]
     run_id = payload["id"]
     existing = conn.execute(
         "SELECT status, ingested_at FROM runs WHERE id = ?", (run_id,)
@@ -245,11 +271,15 @@ def ingest_run(conn: sqlite3.Connection, payload: dict[str, Any]) -> str:
                 payload,
                 steps,
                 ingested_at=datetime.now(timezone.utc).isoformat(),
+                redact_mode=redact_mode,
             )
             _insert_run_and_steps(conn, row, steps)
         elif existing["status"] == "running" and status in FINAL_STATUSES:
             row = _build_row(
-                payload, steps, ingested_at=existing["ingested_at"]
+                payload,
+                steps,
+                ingested_at=existing["ingested_at"],
+                redact_mode=redact_mode,
             )
             conn.execute("DELETE FROM steps WHERE run_id = ?", (run_id,))
             conn.execute("DELETE FROM runs WHERE id = ?", (run_id,))
