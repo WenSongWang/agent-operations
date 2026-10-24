@@ -48,7 +48,7 @@ pre{white-space:pre-wrap;background:#efeae0;padding:.75rem;overflow:auto;max-hei
 </head>
 <body>
 <header><h1>agent-<span>operations</span></h1>
-<p class="muted">runs · latency · tokens · cost · tool failures</p></header>
+<p class="muted">runs · latency · tokens · cost · quality · tool failures</p></header>
 <main>
 <section class="panel">
   <div class="filters">
@@ -71,7 +71,7 @@ pre{white-space:pre-wrap;background:#efeae0;padding:.75rem;overflow:auto;max-hei
 <section class="panel"><h2>Runs</h2>
   <table><thead><tr>
     <th>started</th><th>id</th><th>agent</th><th>env</th><th>status</th>
-    <th>latency</th><th>tokens</th><th>cost</th>
+    <th>latency</th><th>tokens</th><th>cost</th><th>quality</th><th>thumbs</th>
   </tr></thead><tbody id="runs"></tbody></table>
 </section>
 <section class="panel"><h2>Detail</h2><pre id="detail">Select a run.</pre></section>
@@ -112,8 +112,9 @@ async function load() {
     return `<tr data-id="${r.id}">
       <td>${r.started_at}</td><td>${r.id}</td><td>${r.agent}</td><td>${r.environment}</td>
       <td>${r.status}</td><td>${fmt(r.latency_ms)}</td><td>${tok}</td><td>${fmt(r.cost_usd)}</td>
+      <td>${fmt(r.quality_score)}</td><td>${fmt(r.thumbs)}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="8">No runs.</td></tr>';
+  }).join('') || '<tr><td colspan="10">No runs.</td></tr>';
   for (const tr of $('runs').querySelectorAll('tr[data-id]')) {
     tr.onclick = async () => {
       const d = await fetch('/api/runs/'+encodeURIComponent(tr.dataset.id)).then(r=>r.json());

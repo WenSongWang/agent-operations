@@ -32,6 +32,7 @@ FINISH_REASONS = frozenset(
     {"stop", "length", "tool_calls", "content_filter"}
 )
 STEP_KINDS = frozenset({"llm", "tool", "agent", "human"})
+THUMBS = frozenset({"up", "down"})
 
 MAX_TEXT_BYTES = 64 * 1024
 
@@ -68,6 +69,10 @@ OPTIONAL = (
     "app_version",
     "host",
     "request_id",
+    "quality_score",
+    "thumbs",
+    "prompt_version",
+    "template_version",
 )
 
 STEP_OPTIONAL = (
@@ -255,6 +260,19 @@ def ingest_run(
     finish = payload.get("finish_reason")
     if finish is not None and finish not in FINISH_REASONS:
         raise IngestError(f"invalid finish_reason: {finish!r}")
+
+    thumbs = payload.get("thumbs")
+    if thumbs is not None and thumbs not in THUMBS:
+        raise IngestError(f"invalid thumbs: {thumbs!r}")
+
+    if "quality_score" in payload and payload["quality_score"] is not None:
+        try:
+            score = float(payload["quality_score"])
+        except (TypeError, ValueError) as exc:
+            raise IngestError("quality_score must be a number") from exc
+        if score < 0 or score > 1:
+            raise IngestError("quality_score must be between 0 and 1")
+        payload = {**payload, "quality_score": score}
 
     steps = [
         apply_to_step(step, redact_mode)

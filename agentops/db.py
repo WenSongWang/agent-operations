@@ -5,7 +5,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-SCHEMA = """
+TABLES = """
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
     project TEXT NOT NULL,
@@ -50,6 +50,10 @@ CREATE TABLE IF NOT EXISTS runs (
     tags TEXT,
     extra TEXT,
     extra_truncated INTEGER NOT NULL DEFAULT 0,
+    quality_score REAL,
+    thumbs TEXT,
+    prompt_version TEXT,
+    template_version TEXT,
     ingested_at TEXT NOT NULL
 );
 
@@ -82,17 +86,60 @@ CREATE TABLE IF NOT EXISTS steps (
     PRIMARY KEY (run_id, seq),
     FOREIGN KEY (run_id) REFERENCES runs(id)
 );
-
-CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs(started_at DESC);
-CREATE INDEX IF NOT EXISTS idx_runs_project ON runs(project);
-CREATE INDEX IF NOT EXISTS idx_runs_agent ON runs(agent);
-CREATE INDEX IF NOT EXISTS idx_runs_environment ON runs(environment);
-CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
-CREATE INDEX IF NOT EXISTS idx_runs_trace_id ON runs(trace_id);
-CREATE INDEX IF NOT EXISTS idx_steps_run_id ON steps(run_id);
-CREATE INDEX IF NOT EXISTS idx_steps_kind_name ON steps(kind, name);
-CREATE INDEX IF NOT EXISTS idx_steps_error_type ON steps(error_type);
 """
+
+# Columns added after the initial schema; applied with ALTER when missing.
+RUN_COLUMN_MIGRATIONS: tuple[tuple[str, str], ...] = (
+    ("quality_score", "REAL"),
+    ("thumbs", "TEXT"),
+    ("prompt_version", "TEXT"),
+    ("template_version", "TEXT"),
+)
+
+RUN_INDEXES: tuple[tuple[str, str], ...] = (
+    ("idx_runs_started_at", "started_at"),
+    ("idx_runs_project", "project"),
+    ("idx_runs_agent", "agent"),
+    ("idx_runs_environment", "environment"),
+    ("idx_runs_status", "status"),
+    ("idx_runs_trace_id", "trace_id"),
+    ("idx_runs_prompt_version", "prompt_version"),
+    ("idx_runs_thumbs", "thumbs"),
+)
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    existing = {
+        row["name"] for row in conn.execute("PRAGMA table_info(runs)")
+    }
+    for name, col_type in RUN_COLUMN_MIGRATIONS:
+        if name not in existing:
+            conn.execute(f"ALTER TABLE runs ADD COLUMN {name} {col_type}")
+            existing.add(name)
+
+    for index_name, column in RUN_INDEXES:
+        if column in existing:
+            conn.execute(
+                f"CREATE INDEX IF NOT EXISTS {index_name} ON runs({column})"
+            )
+
+    step_cols = {
+        row["name"] for row in conn.execute("PRAGMA table_info(steps)")
+    }
+    if step_cols:
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_steps_run_id ON steps(run_id)"
+        )
+        if "kind" in step_cols and "name" in step_cols:
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_steps_kind_name "
+                "ON steps(kind, name)"
+            )
+        if "error_type" in step_cols:
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_steps_error_type "
+                "ON steps(error_type)"
+            )
 
 
 def connect(path: str | Path) -> sqlite3.Connection:
@@ -102,5 +149,6 @@ def connect(path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.executescript(SCHEMA)
+    conn.executescript(TABLES)
+    _migrate(conn)
     return conn
