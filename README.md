@@ -7,7 +7,7 @@ Lightweight and self-hostable. Default storage is one SQLite file. No ClickHouse
 | 项 | 值 |
 | :--- | :--- |
 | Python | ≥ 3.11 |
-| Install | `pip install -e .`（当前建议从源码安装） |
+| Install | `pip install agent-operations`（或源码 `pip install -e .`） |
 | Default UI | http://127.0.0.1:8787 |
 | Default DB | `./data/agentops.db` |
 
@@ -16,14 +16,15 @@ Lightweight and self-hostable. Default storage is one SQLite file. No ClickHouse
 ### 1. 安装
 
 ```powershell
+python -m pip install agent-operations
+```
+
+从源码开发：
+
+```powershell
 git clone https://github.com/WenSongWang/agent-operations.git
 cd agent-operations
 python -m pip install -e .
-```
-
-可选：跑测试
-
-```powershell
 python -m unittest discover -s tests -v
 ```
 
@@ -225,7 +226,7 @@ agentops-http --host 0.0.0.0 --port 8787
 | 非全链路 APM | 聚焦 agent run + steps，不是通用分布式 tracing |
 | Kafka | 目前只有 JSONL outbox，没有内置 broker |
 | 页面 | 只读调试页；配置了 API Key 后，浏览器调 API 需自行带密钥 |
-| 安装渠道 | 当前以源码 `pip install -e .` 为主；版本见 tag `v0.1.0` / [CHANGELOG](./CHANGELOG.md)，暂未上传 PyPI |
+| 安装渠道 | PyPI：`pip install agent-operations`；版本见 [PyPI 0.1.0](https://pypi.org/project/agent-operations/0.1.0/) / tag `v0.1.0` |
 
 更细的后续项见 [ROADMAP.md](./ROADMAP.md)。
 

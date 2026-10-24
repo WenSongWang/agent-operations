@@ -24,9 +24,16 @@ agentops-http
 
 See [README.md](./README.md) for the 5-minute guide.
 
+### Install from PyPI
+
+```powershell
+python -m pip install agent-operations
+```
+
+https://pypi.org/project/agent-operations/0.1.0/
+
 ### Not in 0.1.0
 
-- PyPI upload (source install only for now)
 - Postgres backend
 - Kafka broker producer/consumer
 - Alert email / logged-in UI
