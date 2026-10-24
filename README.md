@@ -93,7 +93,16 @@ with TracedRun(
 conn.close()
 ```
 
-异常退出时会自动记成 `status=error`。完整示例见 `examples/openai_wrap.py`。
+异常退出时会自动记成 `status=error`。假响应示意：`examples/openai_wrap.py`。
+
+真实调用（需 `OPENAI_API_KEY` + `pip install openai`）：
+
+```powershell
+$env:OPENAI_API_KEY = "sk-..."
+# 可选：$env:OPENAI_BASE_URL = "https://api.openai.com/v1"
+# 可选：$env:OPENAI_MODEL = "gpt-4o-mini"
+python examples/openai_live.py
+```
 
 ### 2c. 接 Agentic-Loop
 

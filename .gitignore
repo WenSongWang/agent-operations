@@ -12,6 +12,7 @@ data/
 examples/*.db
 examples/openai_wrap.db
 examples/agentic_loop_wrap.db
+examples/openai_live.db
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
