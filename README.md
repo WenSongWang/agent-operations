@@ -2,7 +2,7 @@
 
 Open-source Agent Operations (AgentOps / LLMOps) toolkit — trace runs, track latency / tokens / cost, and debug tool failures.
 
-Lightweight and self-hostable. Default storage is a single SQLite file. No ClickHouse, no Kafka in v1.
+Lightweight and self-hostable. Default storage is a single SQLite file. No ClickHouse. Kafka broker is optional later; an event outbox is available now.
 
 ## Phase 1 (this branch)
 
@@ -40,3 +40,11 @@ python -m agentops.alerts --db .\data\agentops.db
 ```
 
 Exit code `2` when alerts fire. Use `--dry-run` to print without POSTing.
+
+Event outbox (Kafka-ready, no broker):
+
+```powershell
+$env:AGENTOPS_EVENT_OUTBOX = ".\data\events.jsonl"
+```
+
+Each successful ingest appends one `agentops.run` v1 JSON line (`create` / `finalize`). A future Kafka producer can publish the same envelope to a topic; SQLite direct write stays the default path.

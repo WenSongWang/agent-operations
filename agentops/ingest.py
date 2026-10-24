@@ -7,6 +7,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
+from agentops.events import emit_run_event
 from agentops.metrics import compute_run_metrics
 from agentops.redact import apply_to_run_fields, apply_to_step, resolve_mode
 
@@ -263,6 +264,7 @@ def ingest_run(
     existing = conn.execute(
         "SELECT status, ingested_at FROM runs WHERE id = ?", (run_id,)
     ).fetchone()
+    event_action: str | None = None
 
     try:
         conn.execute("BEGIN")
@@ -274,6 +276,7 @@ def ingest_run(
                 redact_mode=redact_mode,
             )
             _insert_run_and_steps(conn, row, steps)
+            event_action = "create"
         elif existing["status"] == "running" and status in FINAL_STATUSES:
             row = _build_row(
                 payload,
@@ -284,6 +287,7 @@ def ingest_run(
             conn.execute("DELETE FROM steps WHERE run_id = ?", (run_id,))
             conn.execute("DELETE FROM runs WHERE id = ?", (run_id,))
             _insert_run_and_steps(conn, row, steps)
+            event_action = "finalize"
         elif existing["status"] == "running" and status == "running":
             raise IngestError(f"run already running: {run_id!r}")
         else:
@@ -298,4 +302,12 @@ def ingest_run(
     except Exception:
         conn.rollback()
         raise
+
+    if event_action is not None:
+        emit_run_event(
+            action=event_action,
+            run_id=run_id,
+            status=status,
+            payload=payload,
+        )
     return run_id
