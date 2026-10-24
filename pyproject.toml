@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-operations"
+version = "0.1.0"
+description = "Lightweight self-hosted Agent Operations (AgentOps / LLMOps) toolkit"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "WenSongWang" }]
+keywords = ["agentops", "llmops", "observability", "tracing", "sqlite"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = []
+
+[project.urls]
+Homepage = "https://github.com/WenSongWang/agent-operations"
+Repository = "https://github.com/WenSongWang/agent-operations"
+Issues = "https://github.com/WenSongWang/agent-operations/issues"
+
+[project.scripts]
+agentops-http = "agentops.http:main"
+agentops-alerts = "agentops.alerts:main"
+
+[tool.setuptools.packages.find]
+include = ["agentops*"]

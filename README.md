@@ -1,61 +1,214 @@
 # agent-operations
 
-Open-source Agent Operations (AgentOps / LLMOps) toolkit — trace runs, track latency / tokens / cost, and debug tool failures.
+Open-source **Agent Operations** (AgentOps / LLMOps) toolkit — trace runs, track latency / tokens / cost, and debug tool failures.
 
-Lightweight and self-hostable. Default storage is a single SQLite file. No ClickHouse. Kafka broker is optional later; an event outbox is available now.
+Lightweight and self-hostable. Default storage is one SQLite file. No ClickHouse required.
 
-## Phase 1 (this branch)
+| 项 | 值 |
+| :--- | :--- |
+| Python | ≥ 3.11 |
+| Install | `pip install -e .`（当前建议从源码安装） |
+| Default UI | http://127.0.0.1:8787 |
+| Default DB | `./data/agentops.db` |
 
-- Ingest completed runs + steps into SQLite
-- List / filter runs; latency · tokens · cost summary (incl. p50/p95/p99)
-- Failure grouping for tool debug
-- Local HTTP API + a read-only page (`127.0.0.1` only)
+## 5 分钟上手
 
-## Later (upgrade path)
-
-Running → final status updates, redaction, Postgres, pricing tables, alerts, **Kafka** (multi-host ingest), eval/quality, multi-tenant auth.
-
-## Quick start
+### 1. 安装
 
 ```powershell
-$env:PYTHONPATH = "."
-python -m unittest discover -s tests -v
-python -m agentops.http
+git clone https://github.com/WenSongWang/agent-operations.git
+cd agent-operations
+python -m pip install -e .
 ```
 
-Default DB: `./data/agentops.db`
+可选：跑测试
 
-Redaction (optional): set `AGENTOPS_REDACT=off|hash|drop`, or pass `redact=` to `ingest_run`. Affects `task_input` / `task_output`, step `input` / `output` / `traceback`, and `tags.end_user_id`.
+```powershell
+python -m unittest discover -s tests -v
+```
 
-Pricing (optional): if `cost_usd` is omitted, estimate from `provider` + `model` + tokens using built-in rates (or JSON at `AGENTOPS_PRICING_PATH`). Explicit `cost_usd` always wins.
+### 2. 用 Python 写入一条 run
 
-Alerts (optional):
+```python
+from agentops import connect, ingest_run
+
+conn = connect("./data/agentops.db")
+ingest_run(conn, {
+    "id": "run-001",
+    "project": "demo",
+    "agent": "assistant",
+    "environment": "dev",          # dev | test | uat | prd
+    "name": "answer-question",
+    "status": "ok",                # running | ok | error | timeout | cancelled
+    "started_at": "2026-10-24T10:00:00+00:00",
+    "ended_at": "2026-10-24T10:00:02+00:00",
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "input_tokens": 100,
+    "output_tokens": 50,
+    # cost_usd 可省略：会按内置单价估算
+    "steps": [
+        {
+            "seq": 1,
+            "kind": "llm",         # llm | tool | agent | human
+            "name": "gpt-4o-mini",
+            "status": "ok",
+            "started_at": "2026-10-24T10:00:00+00:00",
+            "ended_at": "2026-10-24T10:00:02+00:00",
+            "input_tokens": 100,
+            "output_tokens": 50,
+        }
+    ],
+})
+conn.close()
+```
+
+或直接跑示例：
+
+```powershell
+python examples/quickstart.py
+```
+
+### 3. 启动本机服务与页面
+
+```powershell
+agentops-http
+# 等价：python -m agentops.http
+```
+
+浏览器打开 http://127.0.0.1:8787  
+
+### 4. 用 HTTP / curl 上报
+
+```powershell
+curl -s http://127.0.0.1:8787/api/runs -Method POST -ContentType "application/json" -Body @'
+{
+  "id": "run-002",
+  "project": "demo",
+  "agent": "assistant",
+  "environment": "dev",
+  "name": "via-http",
+  "status": "ok",
+  "started_at": "2026-10-24T11:00:00+00:00",
+  "ended_at": "2026-10-24T11:00:01+00:00",
+  "latency_ms": 1000,
+  "input_tokens": 10,
+  "output_tokens": 5
+}
+'@
+```
+
+查询：
+
+```powershell
+curl -s "http://127.0.0.1:8787/api/runs?project=demo"
+curl -s "http://127.0.0.1:8787/api/runs/summary?project=demo"
+curl -s "http://127.0.0.1:8787/api/failures?project=demo"
+curl -s "http://127.0.0.1:8787/api/runs/run-002"
+```
+
+## API 一览
+
+| 方法 | 路径 | 说明 |
+| :--- | :--- | :--- |
+| `GET` | `/` | 只读调试页 |
+| `POST` | `/api/runs` | 写入 / 终态更新一条 run |
+| `GET` | `/api/runs` | 列表（可按 project/agent/environment/status/时间筛选） |
+| `GET` | `/api/runs/summary` | 次数、成功率、token/费用、p50/p95/p99 |
+| `GET` | `/api/runs/{id}` | 单条详情（含 steps） |
+| `GET` | `/api/failures` | 工具失败归并 |
+
+### 必填字段（run）
+
+`id`, `project`, `agent`, `environment`, `name`, `status`, `started_at`  
+
+终态（`ok` / `error` / `timeout` / `cancelled`）还要 `ended_at`。  
+`status=running` 时可省略 `ended_at`；同一 `id` 再报终态会覆盖更新。
+
+### 常用可选字段
+
+| 字段 | 说明 |
+| :--- | :--- |
+| `latency_ms` / `ttft_ms` | 耗时；不传则尽量从时间戳 / steps 推算 |
+| `input_tokens` / `output_tokens` / `cached_tokens` / `reasoning_tokens` | token；未上报保持空，不是 0 |
+| `cost_usd` | 费用；不传则按 `provider`+`model` 估算 |
+| `provider` / `model` | 厂商与模型 |
+| `steps` | 步骤列表（排错用） |
+| `quality_score` | 0–1 |
+| `thumbs` | `up` / `down` |
+| `prompt_version` / `template_version` | 提示词 / 模板版本 |
+| `tags` | JSON，如 `{"end_user_id":"..."}` |
+| `extra` | 备用 JSON |
+
+步骤必填：`seq`, `kind`, `name`, `status`。
+
+## 可选能力
+
+### 脱敏
+
+```powershell
+$env:AGENTOPS_REDACT = "hash"   # off | hash | drop
+```
+
+作用于 `task_input` / `task_output`、步骤 `input` / `output` / `traceback`、`tags.end_user_id`。
+
+### 价目表
+
+未传 `cost_usd` 时用内置单价估算。自定义 JSON（键为 `provider/model`）：
+
+```powershell
+$env:AGENTOPS_PRICING_PATH = ".\pricing.json"
+```
+
+### 告警（适合 cron）
 
 ```powershell
 $env:AGENTOPS_ALERT_WEBHOOK = "https://example.com/hook"
 $env:AGENTOPS_ALERT_FAILURE_RATE = "0.2"
 $env:AGENTOPS_ALERT_P95_MS = "3000"
 $env:AGENTOPS_ALERT_COST_USD = "10"
-python -m agentops.alerts --db .\data\agentops.db
+agentops-alerts --db .\data\agentops.db
 ```
 
-Exit code `2` when alerts fire. Use `--dry-run` to print without POSTing.
+有告警时退出码 `2`。`--dry-run` 只打印不 POST。
 
-Event outbox (Kafka-ready, no broker):
+### 事件 outbox（Kafka 预留）
 
 ```powershell
 $env:AGENTOPS_EVENT_OUTBOX = ".\data\events.jsonl"
 ```
 
-Each successful ingest appends one `agentops.run` v1 JSON line (`create` / `finalize`). A future Kafka producer can publish the same envelope to a topic; SQLite direct write stays the default path.
+每次成功写入追加一行 `agentops.run` v1 事件（`create` / `finalize`）。
 
-Quality (optional on ingest): `quality_score` (0–1), `thumbs` (`up`|`down`), `prompt_version`, `template_version`.
-
-Auth (optional):
+### API Key（外网绑定前必配）
 
 ```powershell
-$env:AGENTOPS_API_KEYS = '{"dev-key":{"projects":["demo"]}, "admin":{"projects":["*"]}}'
-python -m agentops.http --host 0.0.0.0 --port 8787
+$env:AGENTOPS_API_KEYS = '{"dev-key":{"projects":["demo"]},"admin":{"projects":["*"]}}'
+agentops-http --host 0.0.0.0 --port 8787
 ```
 
-Send `Authorization: Bearer <key>` or `X-API-Key: <key>` on `/api/*`. Without keys configured, the server stays loopback-only and open (local mode). Non-loopback bind requires keys.
+请求头：`Authorization: Bearer <key>` 或 `X-API-Key: <key>`。  
+未配置密钥时：仅建议本机 `127.0.0.1`，接口开放。非 loopback 绑定必须配置密钥。
+
+## 限制（请先读）
+
+| 限制 | 说明 |
+| :--- | :--- |
+| Alpha | 接口可能继续演进；生产使用请自行评估 |
+| SQLite | 默认单机文件库；多机共享库尚未提供（Postgres 在路线图） |
+| 自报数据 | 延迟 / token / 费用依赖调用方或估算，不是云厂商账单 |
+| 非全链路 APM | 聚焦 agent run + steps，不是通用分布式 tracing |
+| Kafka | 目前只有 JSONL outbox，没有内置 broker |
+| 页面 | 只读调试页；配置了 API Key 后，浏览器调 API 需自行带密钥 |
+| 安装渠道 | 当前以源码 `pip install -e .` 为主，暂未保证 PyPI 正式包 |
+
+更细的后续项见 [ROADMAP.md](./ROADMAP.md)。
+
+## 开发
+
+```powershell
+python -m pip install -e .
+python -m unittest discover -s tests -v
+```
+
+库入口常用符号：`connect`, `ingest_run`, `list_runs`, `summarize_runs`, `get_run`, `list_tool_failures`。
