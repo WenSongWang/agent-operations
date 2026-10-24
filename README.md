@@ -19,14 +19,18 @@ Lightweight and self-hostable. Default storage is one SQLite file. No ClickHouse
 python -m pip install agent-operations
 ```
 
-从源码开发：
+从源码开发（推荐 **uv**）：
 
 ```powershell
 git clone https://github.com/WenSongWang/agent-operations.git
 cd agent-operations
-python -m pip install -e .
+uv venv .venv
+.\.venv\Scripts\Activate.ps1
+uv pip install -e ".[agentic-loop,openai,langgraph]"
 python -m unittest discover -s tests -v
 ```
+
+没有 uv 时：`python -m venv .venv`，激活后用 `python -m pip install -e ".[agentic-loop,openai,langgraph]"`。
 
 ### 2. 用 Python 写入一条 run
 
@@ -289,9 +293,23 @@ agentops-http --host 0.0.0.0 --port 8787
 
 ## 开发
 
+推荐用 uv 虚拟环境（本机已可用 `uv`）：
+
 ```powershell
-python -m pip install -e .
+uv venv .venv
+.\.venv\Scripts\Activate.ps1
+uv pip install -e ".[agentic-loop,openai,langgraph]"
+uv pip install build twine   # 仅发版需要
 python -m unittest discover -s tests -v
+agentops-http
 ```
 
-库入口常用符号：`connect`, `ingest_run`, `list_runs`, `summarize_runs`, `get_run`, `list_tool_failures`。
+验证 PyPI 包时另建干净环境，例如：
+
+```powershell
+uv venv .venv-release --clear
+.\.venv-release\Scripts\Activate.ps1
+uv pip install "agent-operations==0.1.2"
+```
+
+库入口常用符号：`connect`, `ingest_run`, `list_runs`, `summarize_runs`, `get_run`, `list_tool_failures`, `TracedRun`。
