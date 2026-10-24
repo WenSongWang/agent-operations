@@ -47,12 +47,11 @@ def compute_run_metrics(
 ) -> dict[str, Any]:
     """Return derived run fields to merge into the insert row."""
     started = _parse_dt(payload["started_at"])
-    ended = _parse_dt(payload["ended_at"])
-    wall_ms = (ended - started).total_seconds() * 1000.0
-
+    ended_raw = payload.get("ended_at")
     latency = payload.get("latency_ms")
-    if latency is None:
-        latency = wall_ms
+    if latency is None and ended_raw:
+        ended = _parse_dt(ended_raw)
+        latency = (ended - started).total_seconds() * 1000.0
 
     model_ms = _merge_ms(_intervals_for(steps, "llm"))
     tool_ms = _merge_ms(_intervals_for(steps, "tool"))
@@ -62,7 +61,9 @@ def compute_run_metrics(
         + _intervals_for(steps, "tool")
         + _intervals_for(steps, "human")
     )
-    wait_ms = max(0.0, float(latency) - busy)
+    wait_ms = (
+        max(0.0, float(latency) - busy) if latency is not None else None
+    )
 
     ttft = payload.get("ttft_ms")
     if ttft is None:

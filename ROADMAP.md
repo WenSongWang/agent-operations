@@ -8,7 +8,7 @@ SQLite ingest · list/filter · latency/tokens/cost summary (p50/p95/p99) · too
 
 | Step | Topic | Notes |
 | :--- | :--- | :--- |
-| 13 | In-progress runs | Same `id` may start as `running`, then finalize |
+| 13 | In-progress runs | Done: `running` → final update on same `id` |
 | 14 | Redaction | Hash/drop sensitive task/step fields and `end_user_id` |
 | 15 | Postgres | Optional backend; schema aligned with SQLite |
 | 16 | Pricing table | Estimate `cost_usd` from provider+model; caller override still wins |

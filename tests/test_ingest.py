@@ -70,7 +70,71 @@ class TestIngest(unittest.TestCase):
         ingest_run(self.conn, _base())
         with self.assertRaises(IngestError) as ctx:
             ingest_run(self.conn, _base())
-        self.assertIn("duplicate", str(ctx.exception))
+        self.assertIn("finalized", str(ctx.exception))
+
+    def test_running_then_finalize(self) -> None:
+        ingest_run(
+            self.conn,
+            _base(status="running", ended_at=None, latency_ms=None),
+        )
+        row = self.conn.execute(
+            "SELECT status, ended_at, latency_ms, ingested_at "
+            "FROM runs WHERE id = ?",
+            ("run-1",),
+        ).fetchone()
+        self.assertEqual(row["status"], "running")
+        self.assertIsNone(row["ended_at"])
+        self.assertIsNone(row["latency_ms"])
+        first_ingested = row["ingested_at"]
+
+        ingest_run(
+            self.conn,
+            _base(
+                status="error",
+                error="boom",
+                steps=[
+                    {
+                        "seq": 1,
+                        "kind": "tool",
+                        "name": "search",
+                        "status": "error",
+                        "error_type": "RuntimeError",
+                        "error": "boom",
+                    }
+                ],
+            ),
+        )
+        row = self.conn.execute(
+            "SELECT status, ended_at, ingested_at, error FROM runs WHERE id = ?",
+            ("run-1",),
+        ).fetchone()
+        self.assertEqual(row["status"], "error")
+        self.assertIsNotNone(row["ended_at"])
+        self.assertEqual(row["ingested_at"], first_ingested)
+        self.assertEqual(row["error"], "boom")
+        steps = self.conn.execute(
+            "SELECT COUNT(*) AS c FROM steps WHERE run_id = ?", ("run-1",)
+        ).fetchone()
+        self.assertEqual(steps["c"], 1)
+
+    def test_running_again_rejected(self) -> None:
+        ingest_run(
+            self.conn,
+            _base(status="running", ended_at=None, latency_ms=None),
+        )
+        with self.assertRaises(IngestError) as ctx:
+            ingest_run(
+                self.conn,
+                _base(status="running", ended_at=None, latency_ms=None),
+            )
+        self.assertIn("already running", str(ctx.exception))
+
+    def test_final_requires_ended_at(self) -> None:
+        payload = _base()
+        del payload["ended_at"]
+        with self.assertRaises(IngestError) as ctx:
+            ingest_run(self.conn, payload)
+        self.assertIn("ended_at", str(ctx.exception))
 
     def test_unreported_metrics_stay_null(self) -> None:
         ingest_run(self.conn, _base())

@@ -60,7 +60,8 @@ pre{white-space:pre-wrap;background:#efeae0;padding:.75rem;overflow:auto;max-hei
     </label>
     <label>status
       <select id="status"><option value="">any</option>
-      <option>ok</option><option>error</option><option>timeout</option><option>cancelled</option></select>
+      <option>running</option><option>ok</option><option>error</option>
+      <option>timeout</option><option>cancelled</option></select>
     </label>
     <button id="reload">Reload</button>
   </div>

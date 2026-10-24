@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS runs (
     name TEXT NOT NULL,
     status TEXT NOT NULL,
     started_at TEXT NOT NULL,
-    ended_at TEXT NOT NULL,
+    ended_at TEXT,
     latency_ms REAL,
     model_ms REAL,
     tool_ms REAL,

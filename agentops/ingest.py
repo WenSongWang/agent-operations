@@ -1,4 +1,4 @@
-"""Validate and insert a single completed agent run (with steps)."""
+"""Validate and insert or finalize an agent run (with steps)."""
 
 from __future__ import annotations
 
@@ -17,13 +17,14 @@ REQUIRED = (
     "name",
     "status",
     "started_at",
-    "ended_at",
 )
 
 STEP_REQUIRED = ("seq", "kind", "name", "status")
 
 ENVIRONMENTS = frozenset({"dev", "test", "uat", "prd"})
-STATUSES = frozenset({"ok", "error", "timeout", "cancelled"})
+FINAL_STATUSES = frozenset({"ok", "error", "timeout", "cancelled"})
+RUN_STATUSES = FINAL_STATUSES | {"running"}
+STEP_STATUSES = FINAL_STATUSES
 TRIGGERS = frozenset({"user", "schedule", "webhook", "agent", "api"})
 FINISH_REASONS = frozenset(
     {"stop", "length", "tool_calls", "content_filter"}
@@ -41,6 +42,7 @@ METRIC_FIELDS = (
 )
 
 OPTIONAL = (
+    "ended_at",
     "latency_ms",
     "model_ms",
     "tool_ms",
@@ -78,7 +80,7 @@ STEP_OPTIONAL = (
 
 
 class IngestError(ValueError):
-    """Invalid payload or duplicate run id."""
+    """Invalid payload or illegal run id transition."""
 
 
 def _as_json_text(value: Any) -> str | None:
@@ -119,7 +121,7 @@ def _normalize_steps(raw_steps: Any) -> list[dict[str, Any]]:
         if kind not in STEP_KINDS:
             raise IngestError(f"invalid step kind: {kind!r}")
         status = item["status"]
-        if status not in STATUSES:
+        if status not in STEP_STATUSES:
             raise IngestError(f"invalid step status: {status!r}")
         seq = int(item["seq"])
         if seq in seen_seq:
@@ -157,35 +159,19 @@ def _normalize_steps(raw_steps: Any) -> list[dict[str, Any]]:
     return steps
 
 
-def ingest_run(conn: sqlite3.Connection, payload: dict[str, Any]) -> str:
-    """Insert one run and its steps. Returns run id."""
-    missing = [k for k in REQUIRED if not payload.get(k)]
-    if missing:
-        raise IngestError(f"missing required fields: {', '.join(missing)}")
-
-    env = payload["environment"]
-    if env not in ENVIRONMENTS:
-        raise IngestError(f"invalid environment: {env!r}")
-
-    status = payload["status"]
-    if status not in STATUSES:
-        raise IngestError(f"invalid status: {status!r}")
-
-    trigger = payload.get("trigger")
-    if trigger is not None and trigger not in TRIGGERS:
-        raise IngestError(f"invalid trigger: {trigger!r}")
-
-    finish = payload.get("finish_reason")
-    if finish is not None and finish not in FINISH_REASONS:
-        raise IngestError(f"invalid finish_reason: {finish!r}")
-
-    steps = _normalize_steps(payload.get("steps"))
+def _build_row(
+    payload: dict[str, Any],
+    steps: list[dict[str, Any]],
+    *,
+    ingested_at: str,
+) -> dict[str, Any]:
     derived = compute_run_metrics(payload, steps)
-
     row: dict[str, Any] = {k: payload[k] for k in REQUIRED}
     for key in OPTIONAL:
         if key in payload:
             row[key] = payload[key]
+    if "ended_at" not in row:
+        row["ended_at"] = None
     row.update(derived)
 
     task_in, task_in_trunc = _truncate_text(payload.get("task_input"))
@@ -198,28 +184,88 @@ def ingest_run(conn: sqlite3.Connection, payload: dict[str, Any]) -> str:
     row["tags"] = _as_json_text(payload.get("tags"))
     row["extra"] = extra
     row["extra_truncated"] = extra_trunc
-    row["ingested_at"] = datetime.now(timezone.utc).isoformat()
+    row["ingested_at"] = ingested_at
+    return row
 
+
+def _insert_run_and_steps(
+    conn: sqlite3.Connection,
+    row: dict[str, Any],
+    steps: list[dict[str, Any]],
+) -> None:
     columns = list(row.keys())
     placeholders = ", ".join("?" for _ in columns)
     sql = f"INSERT INTO runs ({', '.join(columns)}) VALUES ({placeholders})"
+    conn.execute(sql, [row[c] for c in columns])
+    for step in steps:
+        step_row = {"run_id": row["id"], **step}
+        scols = list(step_row.keys())
+        conn.execute(
+            f"INSERT INTO steps ({', '.join(scols)}) "
+            f"VALUES ({', '.join('?' for _ in scols)})",
+            [step_row[c] for c in scols],
+        )
+
+
+def ingest_run(conn: sqlite3.Connection, payload: dict[str, Any]) -> str:
+    """Insert a run, or finalize an existing running run. Returns run id."""
+    missing = [k for k in REQUIRED if not payload.get(k)]
+    if missing:
+        raise IngestError(f"missing required fields: {', '.join(missing)}")
+
+    env = payload["environment"]
+    if env not in ENVIRONMENTS:
+        raise IngestError(f"invalid environment: {env!r}")
+
+    status = payload["status"]
+    if status not in RUN_STATUSES:
+        raise IngestError(f"invalid status: {status!r}")
+
+    if status in FINAL_STATUSES and not payload.get("ended_at"):
+        raise IngestError("ended_at is required when status is final")
+
+    trigger = payload.get("trigger")
+    if trigger is not None and trigger not in TRIGGERS:
+        raise IngestError(f"invalid trigger: {trigger!r}")
+
+    finish = payload.get("finish_reason")
+    if finish is not None and finish not in FINISH_REASONS:
+        raise IngestError(f"invalid finish_reason: {finish!r}")
+
+    steps = _normalize_steps(payload.get("steps"))
+    run_id = payload["id"]
+    existing = conn.execute(
+        "SELECT status, ingested_at FROM runs WHERE id = ?", (run_id,)
+    ).fetchone()
 
     try:
         conn.execute("BEGIN")
-        conn.execute(sql, [row[c] for c in columns])
-        for step in steps:
-            step_row = {"run_id": row["id"], **step}
-            scols = list(step_row.keys())
-            conn.execute(
-                f"INSERT INTO steps ({', '.join(scols)}) "
-                f"VALUES ({', '.join('?' for _ in scols)})",
-                [step_row[c] for c in scols],
+        if existing is None:
+            row = _build_row(
+                payload,
+                steps,
+                ingested_at=datetime.now(timezone.utc).isoformat(),
             )
+            _insert_run_and_steps(conn, row, steps)
+        elif existing["status"] == "running" and status in FINAL_STATUSES:
+            row = _build_row(
+                payload, steps, ingested_at=existing["ingested_at"]
+            )
+            conn.execute("DELETE FROM steps WHERE run_id = ?", (run_id,))
+            conn.execute("DELETE FROM runs WHERE id = ?", (run_id,))
+            _insert_run_and_steps(conn, row, steps)
+        elif existing["status"] == "running" and status == "running":
+            raise IngestError(f"run already running: {run_id!r}")
+        else:
+            raise IngestError(f"run already finalized: {run_id!r}")
         conn.commit()
+    except IngestError:
+        conn.rollback()
+        raise
     except sqlite3.IntegrityError as exc:
         conn.rollback()
-        raise IngestError(f"duplicate run id: {row['id']!r}") from exc
+        raise IngestError(f"duplicate run id: {run_id!r}") from exc
     except Exception:
         conn.rollback()
         raise
-    return row["id"]
+    return run_id
