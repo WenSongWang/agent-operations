@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.1] - 2026-10-24
+
+### Added
+
+- `AgentOpsJournal` adapter for [agentic-loop](https://pypi.org/project/agentic-loop/) (`run_loop(..., journal=...)`)
+- Example: `examples/agentic_loop_wrap.py`
+- Optional extra: `pip install "agent-operations[agentic-loop]"`
+
+### Changed
+
+- Docs: Agentic-Loop wiring in README
+- Packaging: SPDX `license = "MIT"` (setuptools warning cleanup)
+
 ## [0.1.0] - 2026-10-24
 
 First public alpha of **agent-operations**: lightweight, self-hosted AgentOps / LLMOps on SQLite.
@@ -30,7 +43,7 @@ See [README.md](./README.md) for the 5-minute guide.
 python -m pip install agent-operations
 ```
 
-https://pypi.org/project/agent-operations/0.1.0/
+https://pypi.org/project/agent-operations/
 
 ### Not in 0.1.0
 
