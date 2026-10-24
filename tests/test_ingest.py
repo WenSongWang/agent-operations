@@ -127,6 +127,80 @@ class TestIngest(unittest.TestCase):
         )
         self.assertLessEqual(len(row["extra"].encode("utf-8")), MAX_TEXT_BYTES)
 
+    def test_steps_inserted_and_truncated(self) -> None:
+        from agentops.ingest import MAX_TEXT_BYTES
+
+        big = "y" * (MAX_TEXT_BYTES + 10)
+        ingest_run(
+            self.conn,
+            _base(
+                steps=[
+                    {
+                        "seq": 1,
+                        "kind": "tool",
+                        "name": "search",
+                        "status": "error",
+                        "input": big,
+                        "error_type": "TimeoutError",
+                        "error": "timed out",
+                        "traceback": big,
+                    }
+                ]
+            ),
+        )
+        step = self.conn.execute(
+            "SELECT name, status, input_truncated, traceback_truncated "
+            "FROM steps WHERE run_id = ? AND seq = 1",
+            ("run-1",),
+        ).fetchone()
+        self.assertEqual(step["name"], "search")
+        self.assertEqual(step["status"], "error")
+        self.assertEqual(step["input_truncated"], 1)
+        self.assertEqual(step["traceback_truncated"], 1)
+
+    def test_metrics_from_steps(self) -> None:
+        payload = _base(
+            started_at="2026-10-24T10:00:00+00:00",
+            ended_at="2026-10-24T10:00:05+00:00",
+            steps=[
+                {
+                    "seq": 1,
+                    "kind": "llm",
+                    "name": "gpt",
+                    "status": "ok",
+                    "started_at": "2026-10-24T10:00:00+00:00",
+                    "ended_at": "2026-10-24T10:00:02+00:00",
+                    "ttft_ms": 120,
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                    "cost_usd": 0.01,
+                },
+                {
+                    "seq": 2,
+                    "kind": "tool",
+                    "name": "search",
+                    "status": "ok",
+                    "started_at": "2026-10-24T10:00:02+00:00",
+                    "ended_at": "2026-10-24T10:00:04+00:00",
+                },
+            ],
+        )
+        del payload["latency_ms"]
+        ingest_run(self.conn, payload)
+        row = self.conn.execute(
+            "SELECT latency_ms, model_ms, tool_ms, wait_ms, ttft_ms, "
+            "input_tokens, output_tokens, cost_usd FROM runs WHERE id = ?",
+            ("run-1",),
+        ).fetchone()
+        self.assertEqual(row["latency_ms"], 5000)
+        self.assertEqual(row["model_ms"], 2000)
+        self.assertEqual(row["tool_ms"], 2000)
+        self.assertEqual(row["wait_ms"], 1000)
+        self.assertEqual(row["ttft_ms"], 120)
+        self.assertEqual(row["input_tokens"], 10)
+        self.assertEqual(row["output_tokens"], 5)
+        self.assertEqual(row["cost_usd"], 0.01)
+
 
 if __name__ == "__main__":
     unittest.main()
