@@ -24,4 +24,5 @@ Still open if needed later: Postgres backend, Kafka broker producer/consumer, al
 | Item | Notes |
 | :--- | :--- |
 | `TracedRun` | Done: context manager + OpenAI usage helper (`examples/openai_wrap.py`) |
-| PyPI release | Next candidate: tag `v0.1.0` |
+| Git tag `v0.1.0` | Done: see `CHANGELOG.md` |
+| PyPI upload | Optional follow-up (`twine upload`) |

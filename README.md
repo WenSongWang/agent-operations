@@ -225,7 +225,7 @@ agentops-http --host 0.0.0.0 --port 8787
 | 非全链路 APM | 聚焦 agent run + steps，不是通用分布式 tracing |
 | Kafka | 目前只有 JSONL outbox，没有内置 broker |
 | 页面 | 只读调试页；配置了 API Key 后，浏览器调 API 需自行带密钥 |
-| 安装渠道 | 当前以源码 `pip install -e .` 为主，暂未保证 PyPI 正式包 |
+| 安装渠道 | 当前以源码 `pip install -e .` 为主；版本见 tag `v0.1.0` / [CHANGELOG](./CHANGELOG.md)，暂未上传 PyPI |
 
 更细的后续项见 [ROADMAP.md](./ROADMAP.md)。
 
