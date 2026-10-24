@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.2] - 2026-10-24
+
+### Added
+
+- Live OpenAI example: `examples/openai_live.py` (`OPENAI_API_KEY`)
+- Debug page API key field (localStorage + `X-API-Key`)
+- LangGraph helpers: `traced_invoke` / `traced_ainvoke` + `examples/langgraph_wrap.py`
+- Optional extras: `openai`, `langgraph`
+
 ## [0.1.1] - 2026-10-24
 
 ### Added
