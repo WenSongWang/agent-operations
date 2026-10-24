@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -182,12 +181,13 @@ def _json_bytes(data: Any, status: int = 200) -> tuple[int, bytes, str]:
 
 
 def make_handler(
-    db_path: Path, api_keys: dict[str, Principal] | None = None
+    db_path: Path | str, api_keys: dict[str, Principal] | None = None
 ) -> type[BaseHTTPRequestHandler]:
     keys = api_keys if api_keys is not None else load_api_keys()
+    target = str(db_path)
 
-    def open_db() -> sqlite3.Connection:
-        return connect(db_path)
+    def open_db() -> Any:
+        return connect(target)
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "agentops/0.1"
@@ -335,19 +335,24 @@ def serve(
             "non-loopback bind requires API keys "
             "(AGENTOPS_API_KEYS or AGENTOPS_API_KEYS_PATH)"
         )
-    path = Path(db_path)
-    handler = make_handler(path, keys)
+    # Keep DSN strings intact (Path() mangles postgresql:// on Windows).
+    handler = make_handler(db_path, keys)
     server = ThreadingHTTPServer((host, port), handler)
     return server
 
 
 def main() -> None:
     import argparse
+    import os
 
     parser = argparse.ArgumentParser(description="agent-operations local server")
     parser.add_argument("--host", default=DEFAULT_HOST)
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
-    parser.add_argument("--db", default=str(DEFAULT_DB))
+    parser.add_argument(
+        "--db",
+        default=os.environ.get("AGENTOPS_DATABASE_URL") or str(DEFAULT_DB),
+        help="SQLite path or postgresql:// DSN (env AGENTOPS_DATABASE_URL)",
+    )
     args = parser.parse_args()
     server = serve(args.host, args.port, args.db)
     print(f"agent-operations on http://{args.host}:{args.port}  db={args.db}")

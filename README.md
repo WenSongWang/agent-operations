@@ -162,6 +162,9 @@ result = traced_invoke(
 ```powershell
 agentops-http
 # 等价：python -m agentops.http
+# Postgres（需 agent-operations[postgres]）：
+# agentops-http --db "postgresql://user:pass@localhost:5432/agentops"
+# 或 $env:AGENTOPS_DATABASE_URL = "postgresql://..."
 ```
 
 浏览器打开 http://127.0.0.1:8787  
@@ -297,7 +300,7 @@ agentops-http --host 0.0.0.0 --port 8787
 | 限制 | 说明 |
 | :--- | :--- |
 | Alpha | 接口可能继续演进；生产使用请自行评估 |
-| DB | 默认 SQLite；也可 `connect("postgresql://…")`（需 `pip install "agent-operations[postgres]"`）；`agentops-http` 仍默认文件路径 |
+| DB | 默认 SQLite；也可 `connect` / `agentops-http --db` / `AGENTOPS_DATABASE_URL` 用 `postgresql://…`（需 `[postgres]`） |
 | 自报数据 | 延迟 / token / 费用依赖调用方或估算，不是云厂商账单 |
 | 非全链路 APM | 聚焦 agent run + steps，不是通用分布式 tracing |
 | Kafka | JSONL outbox + 可选 producer；无内置 broker / consumer |

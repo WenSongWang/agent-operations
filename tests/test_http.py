@@ -9,8 +9,9 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest import mock
 
-from agentops.http import serve
+from agentops.http import make_handler, serve
 
 
 class TestHttp(unittest.TestCase):
@@ -93,6 +94,36 @@ class TestHttp(unittest.TestCase):
             self.assertIn("/api/runs/summary", html)
             self.assertIn('id="apiKey"', html)
             self.assertIn("X-API-Key", html)
+
+    def test_handler_passes_postgres_dsn_to_connect(self) -> None:
+        dsn = "postgresql://user:pass@localhost:5432/agentops"
+        handler_cls = make_handler(dsn, api_keys={})
+        # Instantiate without a real HTTP request: call open_db via GET setup.
+        # Probe by patching connect used inside the closure.
+        with mock.patch("agentops.http.connect") as m_connect:
+            m_connect.return_value = mock.MagicMock()
+            # Build a minimal handler instance bound to a fake request.
+            handler = handler_cls.__new__(handler_cls)
+            # open_db is closed over in make_handler; trigger via do_GET home
+            # which does not open db — use a path that does.
+            class FakeServer:
+                def __init__(self) -> None:
+                    pass
+
+            handler.server = FakeServer()  # type: ignore[attr-defined]
+            handler.headers = {}  # type: ignore[attr-defined]
+            handler.path = "/api/runs"  # type: ignore[attr-defined]
+            handler.rfile = mock.Mock()  # type: ignore[attr-defined]
+            handler.wfile = mock.Mock()  # type: ignore[attr-defined]
+            handler.send_response = mock.Mock()  # type: ignore[attr-defined]
+            handler.send_header = mock.Mock()  # type: ignore[attr-defined]
+            handler.end_headers = mock.Mock()  # type: ignore[attr-defined]
+            m_connect.return_value.execute = mock.Mock()
+            m_connect.return_value.close = mock.Mock()
+            # list_runs will be called — patch it to avoid needing real rows API
+            with mock.patch("agentops.http.list_runs", return_value=[]):
+                handler.do_GET()
+            m_connect.assert_called_once_with(dsn)
 
 
 if __name__ == "__main__":
