@@ -50,3 +50,12 @@ $env:AGENTOPS_EVENT_OUTBOX = ".\data\events.jsonl"
 Each successful ingest appends one `agentops.run` v1 JSON line (`create` / `finalize`). A future Kafka producer can publish the same envelope to a topic; SQLite direct write stays the default path.
 
 Quality (optional on ingest): `quality_score` (0–1), `thumbs` (`up`|`down`), `prompt_version`, `template_version`.
+
+Auth (optional):
+
+```powershell
+$env:AGENTOPS_API_KEYS = '{"dev-key":{"projects":["demo"]}, "admin":{"projects":["*"]}}'
+python -m agentops.http --host 0.0.0.0 --port 8787
+```
+
+Send `Authorization: Bearer <key>` or `X-API-Key: <key>` on `/api/*`. Without keys configured, the server stays loopback-only and open (local mode). Non-loopback bind requires keys.

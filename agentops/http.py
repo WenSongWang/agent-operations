@@ -9,6 +9,13 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+from agentops.auth import (
+    AuthError,
+    Principal,
+    authenticate,
+    load_api_keys,
+    scope_project_filter,
+)
 from agentops.db import connect
 from agentops.ingest import IngestError, ingest_run
 from agentops.query import (
@@ -21,6 +28,7 @@ from agentops.query import (
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8787
 DEFAULT_DB = Path("data") / "agentops.db"
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 PAGE_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -135,7 +143,11 @@ def _json_bytes(data: Any, status: int = 200) -> tuple[int, bytes, str]:
     return status, body, "application/json; charset=utf-8"
 
 
-def make_handler(db_path: Path) -> type[BaseHTTPRequestHandler]:
+def make_handler(
+    db_path: Path, api_keys: dict[str, Principal] | None = None
+) -> type[BaseHTTPRequestHandler]:
+    keys = api_keys if api_keys is not None else load_api_keys()
+
     def open_db() -> sqlite3.Connection:
         return connect(db_path)
 
@@ -156,7 +168,10 @@ def make_handler(db_path: Path) -> type[BaseHTTPRequestHandler]:
             qs = parse_qs(urlparse(self.path).query)
             return {k: v[0] for k, v in qs.items() if v}
 
-        def _filter_kwargs(self) -> dict[str, Any]:
+        def _principal(self) -> Principal | None:
+            return authenticate(self.headers, keys)
+
+        def _filter_kwargs(self, principal: Principal | None) -> dict[str, Any]:
             q = self._query()
             out: dict[str, Any] = {}
             for key in (
@@ -173,6 +188,9 @@ def make_handler(db_path: Path) -> type[BaseHTTPRequestHandler]:
                 out["limit"] = int(q["limit"])
             if "offset" in q:
                 out["offset"] = int(q["offset"])
+            out["project"] = scope_project_filter(
+                principal, out.get("project")
+            )
             return out
 
         def do_GET(self) -> None:  # noqa: N802
@@ -183,20 +201,23 @@ def make_handler(db_path: Path) -> type[BaseHTTPRequestHandler]:
                     body = PAGE_HTML.encode("utf-8")
                     self._send(200, body, "text/html; charset=utf-8")
                     return
+                principal = self._principal()
                 conn = open_db()
                 try:
                     if path == "/api/runs":
-                        rows = list_runs(conn, **self._filter_kwargs())
+                        rows = list_runs(
+                            conn, **self._filter_kwargs(principal)
+                        )
                         status, body, ctype = _json_bytes(rows)
                     elif path == "/api/runs/summary":
-                        kw = self._filter_kwargs()
+                        kw = self._filter_kwargs(principal)
                         kw.pop("limit", None)
                         kw.pop("offset", None)
                         status, body, ctype = _json_bytes(
                             summarize_runs(conn, **kw)
                         )
                     elif path == "/api/failures":
-                        kw = self._filter_kwargs()
+                        kw = self._filter_kwargs(principal)
                         kw.pop("status", None)
                         kw.pop("offset", None)
                         status, body, ctype = _json_bytes(
@@ -209,6 +230,14 @@ def make_handler(db_path: Path) -> type[BaseHTTPRequestHandler]:
                             status, body, ctype = _json_bytes(
                                 {"error": "not found"}, 404
                             )
+                        elif principal is not None:
+                            try:
+                                principal.require_project(detail.get("project"))
+                                status, body, ctype = _json_bytes(detail)
+                            except AuthError:
+                                status, body, ctype = _json_bytes(
+                                    {"error": "not found"}, 404
+                                )
                         else:
                             status, body, ctype = _json_bytes(detail)
                     else:
@@ -217,6 +246,8 @@ def make_handler(db_path: Path) -> type[BaseHTTPRequestHandler]:
                         )
                 finally:
                     conn.close()
+            except AuthError as exc:
+                status, body, ctype = _json_bytes({"error": str(exc)}, 401)
             except Exception as exc:  # noqa: BLE001
                 status, body, ctype = _json_bytes({"error": str(exc)}, 500)
             self._send(status, body, ctype)
@@ -231,15 +262,20 @@ def make_handler(db_path: Path) -> type[BaseHTTPRequestHandler]:
             length = int(self.headers.get("Content-Length", "0"))
             raw = self.rfile.read(length) if length else b"{}"
             try:
+                principal = self._principal()
                 payload = json.loads(raw.decode("utf-8"))
                 if not isinstance(payload, dict):
                     raise IngestError("body must be a JSON object")
+                if principal is not None:
+                    principal.require_project(payload.get("project"))
                 conn = open_db()
                 try:
                     run_id = ingest_run(conn, payload)
                 finally:
                     conn.close()
                 status, body, ctype = _json_bytes({"id": run_id}, 201)
+            except AuthError as exc:
+                status, body, ctype = _json_bytes({"error": str(exc)}, 401)
             except IngestError as exc:
                 status, body, ctype = _json_bytes({"error": str(exc)}, 400)
             except Exception as exc:  # noqa: BLE001
@@ -253,11 +289,16 @@ def serve(
     host: str = DEFAULT_HOST,
     port: int = DEFAULT_PORT,
     db_path: Path | str = DEFAULT_DB,
+    api_keys: dict[str, Principal] | None = None,
 ) -> ThreadingHTTPServer:
-    if host not in {"127.0.0.1", "localhost", "::1"}:
-        raise ValueError("phase1 server binds to loopback only")
+    keys = api_keys if api_keys is not None else load_api_keys()
+    if host not in LOOPBACK_HOSTS and not keys:
+        raise ValueError(
+            "non-loopback bind requires API keys "
+            "(AGENTOPS_API_KEYS or AGENTOPS_API_KEYS_PATH)"
+        )
     path = Path(db_path)
-    handler = make_handler(path)
+    handler = make_handler(path, keys)
     server = ThreadingHTTPServer((host, port), handler)
     return server
 
