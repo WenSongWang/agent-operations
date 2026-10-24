@@ -10,8 +10,8 @@ SQLite ingest · list/filter · latency/tokens/cost summary (p50/p95/p99) · too
 | :--- | :--- | :--- |
 | 13 | In-progress runs | Done: `running` → final update on same `id` |
 | 14 | Redaction | Done: `AGENTOPS_REDACT` / `redact=` → off\|hash\|drop |
-| 15 | Postgres | Optional backend; schema aligned with SQLite |
-| 16 | Pricing table | Estimate `cost_usd` from provider+model; caller override still wins |
+| 15 | Postgres | Skipped for now (SQLite enough for single-host) |
+| 16 | Pricing table | Done: built-in rates + `AGENTOPS_PRICING_PATH`; caller `cost_usd` wins |
 | 17 | Alerts | Webhook/email on failure rate, p95, cost spikes |
 | 18 | Kafka upgrade | Multi-host high-throughput ingest via topics; direct write path remains |
 | 19 | Eval / quality | Optional scores, thumbs, prompt/template version columns |

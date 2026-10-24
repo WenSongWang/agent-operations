@@ -26,3 +26,5 @@ python -m agentops.http
 Default DB: `./data/agentops.db`
 
 Redaction (optional): set `AGENTOPS_REDACT=off|hash|drop`, or pass `redact=` to `ingest_run`. Affects `task_input` / `task_output`, step `input` / `output` / `traceback`, and `tags.end_user_id`.
+
+Pricing (optional): if `cost_usd` is omitted, estimate from `provider` + `model` + tokens using built-in rates (or JSON at `AGENTOPS_PRICING_PATH`). Explicit `cost_usd` always wins.

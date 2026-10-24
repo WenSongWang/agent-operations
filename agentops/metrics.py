@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
+from agentops.pricing import estimate_from_payload
+
 
 def _parse_dt(value: str) -> datetime:
     return datetime.fromisoformat(value)
@@ -107,4 +109,10 @@ def compute_run_metrics(
             total = total + val
         if saw:
             out[key] = total
+
+    # Caller cost wins; else step sum; else price-table estimate.
+    if out.get("cost_usd") is None:
+        estimated = estimate_from_payload(payload, out)
+        if estimated is not None:
+            out["cost_usd"] = estimated
     return out
