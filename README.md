@@ -28,3 +28,15 @@ Default DB: `./data/agentops.db`
 Redaction (optional): set `AGENTOPS_REDACT=off|hash|drop`, or pass `redact=` to `ingest_run`. Affects `task_input` / `task_output`, step `input` / `output` / `traceback`, and `tags.end_user_id`.
 
 Pricing (optional): if `cost_usd` is omitted, estimate from `provider` + `model` + tokens using built-in rates (or JSON at `AGENTOPS_PRICING_PATH`). Explicit `cost_usd` always wins.
+
+Alerts (optional):
+
+```powershell
+$env:AGENTOPS_ALERT_WEBHOOK = "https://example.com/hook"
+$env:AGENTOPS_ALERT_FAILURE_RATE = "0.2"
+$env:AGENTOPS_ALERT_P95_MS = "3000"
+$env:AGENTOPS_ALERT_COST_USD = "10"
+python -m agentops.alerts --db .\data\agentops.db
+```
+
+Exit code `2` when alerts fire. Use `--dry-run` to print without POSTing.
