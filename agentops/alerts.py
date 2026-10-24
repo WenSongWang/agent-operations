@@ -1,20 +1,27 @@
-"""Threshold checks and webhook notifications for run health."""
+"""Threshold checks and webhook / email notifications for run health."""
 
 from __future__ import annotations
 
 import json
 import os
+import smtplib
 import sqlite3
+import ssl
 import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass
+from email.message import EmailMessage
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from agentops.db import connect
 from agentops.query import summarize_runs
 
 DEFAULT_DB = Path("data") / "agentops.db"
+
+# Tests may replace: (host, port, user, password, use_tls, msg) -> None
+EmailSender = Callable[[str, int, str | None, str | None, bool, EmailMessage], None]
+_email_sender: EmailSender | None = None
 
 
 @dataclass(frozen=True)
@@ -115,11 +122,85 @@ def send_webhook(url: str, payload: dict[str, Any], timeout: float = 5.0) -> Non
         resp.read()
 
 
+def set_email_sender(sender: EmailSender | None) -> None:
+    """Override SMTP send for tests. Pass None to restore the default client."""
+    global _email_sender
+    _email_sender = sender
+
+
+def _default_email_send(
+    host: str,
+    port: int,
+    user: str | None,
+    password: str | None,
+    use_tls: bool,
+    msg: EmailMessage,
+) -> None:
+    if use_tls:
+        with smtplib.SMTP(host, port, timeout=15) as smtp:
+            smtp.starttls(context=ssl.create_default_context())
+            if user:
+                smtp.login(user, password or "")
+            smtp.send_message(msg)
+    else:
+        with smtplib.SMTP(host, port, timeout=15) as smtp:
+            if user:
+                smtp.login(user, password or "")
+            smtp.send_message(msg)
+
+
+def alert_email_recipients(raw: str | None = None) -> list[str]:
+    text = raw if raw is not None else os.environ.get("AGENTOPS_ALERT_EMAIL", "")
+    return [p.strip() for p in text.split(",") if p.strip()]
+
+
+def send_alert_email(
+    alerts: list[Alert],
+    summary: dict[str, Any],
+    *,
+    to: str | None = None,
+) -> bool:
+    """Send a plain-text alert mail. No-op unless recipients + SMTP host are set."""
+    recipients = alert_email_recipients(to)
+    host = os.environ.get("AGENTOPS_SMTP_HOST", "").strip()
+    if not recipients or not host:
+        return False
+    port = int(os.environ.get("AGENTOPS_SMTP_PORT", "587"))
+    user = os.environ.get("AGENTOPS_SMTP_USER") or None
+    password = os.environ.get("AGENTOPS_SMTP_PASSWORD") or None
+    from_addr = (
+        os.environ.get("AGENTOPS_SMTP_FROM", "").strip()
+        or user
+        or "agentops@localhost"
+    )
+    use_tls = os.environ.get("AGENTOPS_SMTP_TLS", "1").strip() not in (
+        "0",
+        "false",
+        "False",
+        "no",
+    )
+    lines = [f"- {a.kind}: {a.message}" for a in alerts]
+    body = (
+        "agent-operations alerts\n\n"
+        + "\n".join(lines)
+        + f"\n\nruns={summary.get('count')}\n"
+    )
+    msg = EmailMessage()
+    msg["Subject"] = f"[agentops] {len(alerts)} alert(s)"
+    msg["From"] = from_addr
+    msg["To"] = ", ".join(recipients)
+    msg.set_content(body)
+    sender = _email_sender or _default_email_send
+    sender(host, port, user, password, use_tls, msg)
+    return True
+
+
 def check_alerts(
     conn: sqlite3.Connection,
     *,
     thresholds: Thresholds | None = None,
     webhook: str | None = None,
+    email: str | None = None,
     notify: bool = True,
     project: str | None = None,
     agent: str | None = None,
@@ -127,7 +208,7 @@ def check_alerts(
     started_after: str | None = None,
     started_before: str | None = None,
 ) -> list[Alert]:
-    """Evaluate summary filters; optionally POST alerts to webhook."""
+    """Evaluate summary filters; optionally webhook and/or email alerts."""
     summary = summarize_runs(
         conn,
         project=project,
@@ -137,23 +218,27 @@ def check_alerts(
         started_before=started_before,
     )
     alerts = evaluate_alerts(summary, thresholds)
-    url = webhook if webhook is not None else os.environ.get("AGENTOPS_ALERT_WEBHOOK")
-    if notify and alerts and url:
-        send_webhook(
-            url,
-            {
-                "source": "agent-operations",
-                "alerts": [asdict(a) for a in alerts],
-                "summary": summary,
-                "filters": {
-                    "project": project,
-                    "agent": agent,
-                    "environment": environment,
-                    "started_after": started_after,
-                    "started_before": started_before,
-                },
+    if notify and alerts:
+        payload = {
+            "source": "agent-operations",
+            "alerts": [asdict(a) for a in alerts],
+            "summary": summary,
+            "filters": {
+                "project": project,
+                "agent": agent,
+                "environment": environment,
+                "started_after": started_after,
+                "started_before": started_before,
             },
+        }
+        url = (
+            webhook
+            if webhook is not None
+            else os.environ.get("AGENTOPS_ALERT_WEBHOOK")
         )
+        if url:
+            send_webhook(url, payload)
+        send_alert_email(alerts, summary, to=email)
     return alerts
 
 

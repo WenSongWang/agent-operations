@@ -1,15 +1,24 @@
-"""Tests for alert evaluation and webhook notify."""
+"""Tests for alert evaluation and webhook / email notify."""
 
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from unittest import mock
 
-from agentops.alerts import Thresholds, check_alerts, evaluate_alerts
+from agentops.alerts import (
+    Alert,
+    Thresholds,
+    check_alerts,
+    evaluate_alerts,
+    send_alert_email,
+    set_email_sender,
+)
 from agentops.db import connect
 from agentops.ingest import ingest_run
 
@@ -32,6 +41,9 @@ def _run(run_id: str, **overrides):
 
 
 class TestAlerts(unittest.TestCase):
+    def tearDown(self) -> None:
+        set_email_sender(None)
+
     def test_evaluate_failure_rate_and_p95(self) -> None:
         summary = {
             "count": 5,
@@ -95,6 +107,54 @@ class TestAlerts(unittest.TestCase):
                 conn.close()
                 server.shutdown()
                 server.server_close()
+
+    def test_send_alert_email_noop_without_smtp(self) -> None:
+        sent: list = []
+        set_email_sender(lambda *a: sent.append(a))
+        alert = Alert(kind="x", message="m", value=1.0, threshold=1.0)
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("AGENTOPS_SMTP_HOST", None)
+            os.environ.pop("AGENTOPS_ALERT_EMAIL", None)
+            ok = send_alert_email([alert], {"count": 1})
+        self.assertFalse(ok)
+        self.assertEqual(sent, [])
+
+    def test_check_alerts_sends_email(self) -> None:
+        sent: list = []
+        set_email_sender(lambda *a: sent.append(a))
+        env = {
+            "AGENTOPS_SMTP_HOST": "smtp.example",
+            "AGENTOPS_SMTP_PORT": "587",
+            "AGENTOPS_ALERT_EMAIL": "ops@example.com",
+            "AGENTOPS_SMTP_FROM": "bot@example.com",
+            "AGENTOPS_SMTP_TLS": "1",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            conn = connect(Path(tmp) / "agentops.db")
+            try:
+                ingest_run(conn, _run("ok-1", latency_ms=100))
+                ingest_run(
+                    conn,
+                    _run("err-1", status="error", latency_ms=5000, cost_usd=2.0),
+                )
+                with mock.patch.dict(os.environ, env, clear=False):
+                    alerts = check_alerts(
+                        conn,
+                        thresholds=Thresholds(
+                            failure_rate=0.4, p95_ms=1000, cost_usd=1.0
+                        ),
+                        webhook=None,
+                    )
+                self.assertTrue(alerts)
+                self.assertEqual(len(sent), 1)
+                host, port, _user, _password, use_tls, msg = sent[0]
+                self.assertEqual(host, "smtp.example")
+                self.assertEqual(port, 587)
+                self.assertTrue(use_tls)
+                self.assertEqual(msg["To"], "ops@example.com")
+                self.assertIn("alert", msg["Subject"].lower())
+            finally:
+                conn.close()
 
 
 if __name__ == "__main__":

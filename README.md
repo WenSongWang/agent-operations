@@ -255,10 +255,18 @@ $env:AGENTOPS_ALERT_WEBHOOK = "https://example.com/hook"
 $env:AGENTOPS_ALERT_FAILURE_RATE = "0.2"
 $env:AGENTOPS_ALERT_P95_MS = "3000"
 $env:AGENTOPS_ALERT_COST_USD = "10"
+# 可选：同时发邮件（stdlib SMTP）
+$env:AGENTOPS_ALERT_EMAIL = "ops@example.com"
+$env:AGENTOPS_SMTP_HOST = "smtp.example.com"
+# $env:AGENTOPS_SMTP_PORT = "587"
+# $env:AGENTOPS_SMTP_USER = "..."
+# $env:AGENTOPS_SMTP_PASSWORD = "..."
+# $env:AGENTOPS_SMTP_FROM = "agentops@example.com"
+# $env:AGENTOPS_SMTP_TLS = "1"
 agentops-alerts --db .\data\agentops.db
 ```
 
-有告警时退出码 `2`。`--dry-run` 只打印不 POST。
+有告警时退出码 `2`。`--dry-run` 只打印，不 webhook / 不发信。
 
 ### 事件 outbox / Kafka
 
