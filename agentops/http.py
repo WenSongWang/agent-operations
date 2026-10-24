@@ -60,6 +60,7 @@ pre{white-space:pre-wrap;background:#efeae0;padding:.75rem;overflow:auto;max-hei
 <main>
 <section class="panel">
   <div class="filters">
+    <label>API key<input id="apiKey" type="password" placeholder="if server requires auth" autocomplete="off"/></label>
     <label>project<input id="project"/></label>
     <label>agent<input id="agent"/></label>
     <label>environment
@@ -73,6 +74,7 @@ pre{white-space:pre-wrap;background:#efeae0;padding:.75rem;overflow:auto;max-hei
     </label>
     <button id="reload">Reload</button>
   </div>
+  <p id="authHint" class="muted"></p>
 </section>
 <section class="panel"><h2>Summary</h2><div id="summary" class="stats muted">Loading…</div></section>
 <section class="panel"><h2>Tool failures</h2><div id="failures" class="muted">Loading…</div></section>
@@ -86,6 +88,11 @@ pre{white-space:pre-wrap;background:#efeae0;padding:.75rem;overflow:auto;max-hei
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
+const KEY_STORE = 'agentops.apiKey';
+$('apiKey').value = localStorage.getItem(KEY_STORE) || '';
+$('apiKey').addEventListener('change', () => {
+  localStorage.setItem(KEY_STORE, $('apiKey').value.trim());
+});
 function q() {
   const p = new URLSearchParams();
   for (const k of ['project','agent','environment','status']) {
@@ -94,13 +101,31 @@ function q() {
   return p.toString();
 }
 function fmt(n){ return n==null ? '—' : n; }
+function apiHeaders() {
+  const h = {};
+  const key = $('apiKey').value.trim();
+  if (key) h['X-API-Key'] = key;
+  return h;
+}
+async function apiGet(path) {
+  const resp = await fetch(path, { headers: apiHeaders() });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const msg = data.error || (resp.status + ' ' + resp.statusText);
+    throw new Error(msg);
+  }
+  return data;
+}
 async function load() {
+  localStorage.setItem(KEY_STORE, $('apiKey').value.trim());
+  $('authHint').textContent = '';
   const qs = q();
-  const [summary, runs, failures] = await Promise.all([
-    fetch('/api/runs/summary'+(qs?'?'+qs:'')).then(r=>r.json()),
-    fetch('/api/runs'+(qs?'?'+qs:'')).then(r=>r.json()),
-    fetch('/api/failures'+(qs?'?'+qs:'')).then(r=>r.json()),
-  ]);
+  try {
+    const [summary, runs, failures] = await Promise.all([
+      apiGet('/api/runs/summary'+(qs?'?'+qs:'')),
+      apiGet('/api/runs'+(qs?'?'+qs:'')),
+      apiGet('/api/failures'+(qs?'?'+qs:'')),
+    ]);
   $('summary').innerHTML = `
     <div class="stat"><strong>${summary.count}</strong>runs</div>
     <div class="stat"><strong>${fmt(summary.success_rate==null?null:(summary.success_rate*100).toFixed(0)+'%')}</strong>success</div>
@@ -125,9 +150,22 @@ async function load() {
   }).join('') || '<tr><td colspan="10">No runs.</td></tr>';
   for (const tr of $('runs').querySelectorAll('tr[data-id]')) {
     tr.onclick = async () => {
-      const d = await fetch('/api/runs/'+encodeURIComponent(tr.dataset.id)).then(r=>r.json());
-      $('detail').textContent = JSON.stringify(d, null, 2);
+      try {
+        const d = await apiGet('/api/runs/'+encodeURIComponent(tr.dataset.id));
+        $('detail').textContent = JSON.stringify(d, null, 2);
+      } catch (err) {
+        $('detail').textContent = String(err.message || err);
+      }
     };
+  }
+  } catch (err) {
+    const msg = String(err.message || err);
+    $('authHint').textContent = msg.includes('API key')
+      ? 'Auth required: paste an API key above, then Reload.'
+      : msg;
+    $('summary').textContent = 'Failed to load.';
+    $('failures').textContent = '';
+    $('runs').innerHTML = '';
   }
 }
 $('reload').onclick = load;

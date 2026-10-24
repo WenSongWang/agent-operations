@@ -250,6 +250,8 @@ agentops-http --host 0.0.0.0 --port 8787
 请求头：`Authorization: Bearer <key>` 或 `X-API-Key: <key>`。  
 未配置密钥时：仅建议本机 `127.0.0.1`，接口开放。非 loopback 绑定必须配置密钥。
 
+调试页有 **API key** 输入框（存浏览器 `localStorage`），Reload 时自动带 `X-API-Key`。
+
 ## 限制（请先读）
 
 | 限制 | 说明 |
@@ -259,7 +261,7 @@ agentops-http --host 0.0.0.0 --port 8787
 | 自报数据 | 延迟 / token / 费用依赖调用方或估算，不是云厂商账单 |
 | 非全链路 APM | 聚焦 agent run + steps，不是通用分布式 tracing |
 | Kafka | 目前只有 JSONL outbox，没有内置 broker |
-| 页面 | 只读调试页；配置了 API Key 后，浏览器调 API 需自行带密钥 |
+| 页面 | 只读调试页；可填 API key 后查询 |
 | 安装渠道 | PyPI：`pip install agent-operations`；版本见 [PyPI](https://pypi.org/project/agent-operations/) / tag `v0.1.1` |
 
 更细的后续项见 [ROADMAP.md](./ROADMAP.md)。

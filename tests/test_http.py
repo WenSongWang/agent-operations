@@ -91,6 +91,8 @@ class TestHttp(unittest.TestCase):
             self.assertEqual(resp.status, 200)
             self.assertIn("agent-operations", html)
             self.assertIn("/api/runs/summary", html)
+            self.assertIn('id="apiKey"', html)
+            self.assertIn("X-API-Key", html)
 
 
 if __name__ == "__main__":
