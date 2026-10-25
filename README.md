@@ -283,6 +283,14 @@ $env:AGENTOPS_KAFKA_BOOTSTRAP = "localhost:9092"
 
 每次成功写入追加一行 `agentops.run` v1 事件（`create` / `finalize`）；若配置了 bootstrap 则再 publish 同一 JSON。
 
+另开进程消费写入本地库（不会再次 emit，避免回环）：
+
+```powershell
+# $env:AGENTOPS_KAFKA_GROUP = "agentops-ingest"   # 默认
+agentops-kafka --db .\data\agentops.db
+# agentops-kafka --max-messages 100
+```
+
 ### API Key（外网绑定前必配）
 
 ```powershell
@@ -303,7 +311,7 @@ agentops-http --host 0.0.0.0 --port 8787
 | DB | 默认 SQLite；也可 `connect` / `agentops-http --db` / `AGENTOPS_DATABASE_URL` 用 `postgresql://…`（需 `[postgres]`） |
 | 自报数据 | 延迟 / token / 费用依赖调用方或估算，不是云厂商账单 |
 | 非全链路 APM | 聚焦 agent run + steps，不是通用分布式 tracing |
-| Kafka | JSONL outbox + 可选 producer；无内置 broker / consumer |
+| Kafka | JSONL outbox + 可选 producer / `agentops-kafka` consumer；无内置 broker |
 | 页面 | 只读调试页；可填 API key 后查询 |
 | 安装渠道 | PyPI：`pip install agent-operations`；版本见 [PyPI](https://pypi.org/project/agent-operations/) / tag `v0.1.3` |
 

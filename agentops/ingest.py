@@ -229,10 +229,12 @@ def ingest_run(
     payload: dict[str, Any],
     *,
     redact: str | None = None,
+    emit: bool = True,
 ) -> str:
     """Insert a run, or finalize an existing running run. Returns run id.
 
     redact: off | hash | drop (default from AGENTOPS_REDACT, else off).
+    emit: if False, skip outbox / Kafka (use when consuming those events).
     """
     try:
         redact_mode = resolve_mode(redact)
@@ -321,7 +323,7 @@ def ingest_run(
             raise IngestError(f"duplicate run id: {run_id!r}") from exc
         raise
 
-    if event_action is not None:
+    if emit and event_action is not None:
         emit_run_event(
             action=event_action,
             run_id=run_id,

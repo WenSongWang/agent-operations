@@ -39,6 +39,7 @@ Issues = "https://github.com/WenSongWang/agent-operations/issues"
 [project.scripts]
 agentops-http = "agentops.http:main"
 agentops-alerts = "agentops.alerts:main"
+agentops-kafka = "agentops.consume:main"
 
 [tool.setuptools.packages.find]
 include = ["agentops*"]
