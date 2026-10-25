@@ -40,6 +40,7 @@ Issues = "https://github.com/WenSongWang/agent-operations/issues"
 agentops-http = "agentops.http:main"
 agentops-alerts = "agentops.alerts:main"
 agentops-kafka = "agentops.consume:main"
+agentops-smoke = "agentops.smoke:main"
 
 [tool.setuptools.packages.find]
 include = ["agentops*"]

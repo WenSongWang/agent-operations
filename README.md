@@ -22,7 +22,7 @@ Lightweight and self-hostable. Default storage is one SQLite file. No ClickHouse
 | `pip` 一个包就能塞进现有循环 | 要托管采集、多区域、厂商级账单对账 |
 | 单机 SQLite 就够；长大再迁 Postgres | 一上来就要多租户产品级登录与权限中心 |
 
-小白路径建议：本机 `pip install agent-operations` → `python scripts/smoke.py`（应打印 `smoke passed`）→ `examples/quickstart.py` → `agentops-http` 看页面；确认有用再考虑云上部署。
+小白路径建议：本机 `pip install agent-operations` → `agentops-smoke`（应打印 `smoke passed`）→ `examples/quickstart.py` → `agentops-http` 看页面；确认有用再考虑云上部署。
 
 ### 系统要求（Windows / macOS / Linux / iOS）
 
@@ -77,8 +77,8 @@ curl -s https://agentops.example.com/api/runs `
 
 ```powershell
 python -m pip install agent-operations
-# 仓库内（或 clone 后）：
-python scripts/smoke.py
+agentops-smoke
+# 源码树也可用：python scripts/smoke.py
 ```
 
 看到 `smoke passed` 即本机链路正常（Win / macOS / Linux 同一命令）。
