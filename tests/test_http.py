@@ -95,6 +95,32 @@ class TestHttp(unittest.TestCase):
             self.assertIn('id="apiKey"', html)
             self.assertIn("X-API-Key", html)
 
+    def test_main_prints_next_step_without_api_keys(self) -> None:
+        import io
+        from contextlib import redirect_stderr
+
+        from agentops import http as http_mod
+
+        buf = io.StringIO()
+        with mock.patch.dict("os.environ", {"AGENTOPS_API_KEYS": ""}, clear=False):
+            # Ensure empty keys even if env was unset oddly
+            import os
+
+            os.environ.pop("AGENTOPS_API_KEYS", None)
+            os.environ.pop("AGENTOPS_API_KEYS_PATH", None)
+            with mock.patch(
+                "sys.argv",
+                ["agentops-http", "--host", "0.0.0.0", "--port", "8798"],
+            ):
+                with redirect_stderr(buf):
+                    with self.assertRaises(SystemExit) as ctx:
+                        http_mod.main()
+        self.assertEqual(ctx.exception.code, 1)
+        err = buf.getvalue()
+        self.assertIn("error:", err)
+        self.assertIn("next:", err)
+        self.assertIn("API", err)
+
     def test_handler_passes_postgres_dsn_to_connect(self) -> None:
         dsn = "postgresql://user:pass@localhost:5432/agentops"
         handler_cls = make_handler(dsn, api_keys={})

@@ -337,6 +337,30 @@ agentops-http --host 0.0.0.0 --port 8787
 
 Headers: `Authorization: Bearer <key>` or `X-API-Key: <key>`.
 
+## Something went wrong?
+
+Use this symptom → check table first; if still stuck, include the **full error text**.
+
+| Symptom | Check |
+| :--- | :--- |
+| `agentops-smoke` / `agentops-http` not found | Installed (`pip install agent-operations`)? venv activated? On Windows try `python -m agentops.smoke` / `python -m agentops.http` |
+| Smoke fails or HTTP unreachable | Local firewall; re-run `agentops-smoke` and read any `FAIL:` line |
+| Page loads but empty / auth hint | If `AGENTOPS_API_KEYS` is set, paste the same key on the debug page and Reload; send `X-API-Key` or `Authorization: Bearer …` |
+| POST `/api/runs` → 400 | Read JSON `error`: missing fields, bad `environment`/`status`, or final status without `ended_at` are most common |
+| “duplicate” / already finalized | One create per `id`; a `running` run can be finalized once. Use a new `id` or `GET /api/runs/{id}` |
+| Crash on `--host 0.0.0.0` | Non-loopback bind requires `AGENTOPS_API_KEYS` |
+| Missing `kafka-python` / `psycopg` | `pip install "agent-operations[kafka]"` or `[postgres]` |
+| SQLite / permission errors | Is the `--db` directory writable? Avoid read-only disks; multi-process writers on one SQLite file can lock |
+| Cloud 502 / unreachable | Security group; listening on `127.0.0.1` only; reverse proxy target port |
+| Kafka consumer prints `skip:` | Invalid `agentops.run` v1 JSON or payload failed the same ingest rules |
+
+Quick check:
+
+```powershell
+python -c "import agentops; print(agentops.__version__)"
+agentops-smoke
+```
+
 ## Limits
 
 | Limit | Notes |

@@ -369,6 +369,30 @@ agentops-http --host 0.0.0.0 --port 8787
 
 调试页有 **API key** 输入框（存浏览器 `localStorage`），Reload 时自动带 `X-API-Key`。
 
+## 出问题了？
+
+按下面「现象 → 先查什么」自查；仍不行再带上**完整报错原文**提问。
+
+| 现象 | 先查什么 |
+| :--- | :--- |
+| `agentops-smoke` / `agentops-http` 不是命令 | 是否已 `pip install agent-operations`、是否激活了虚拟环境；Win 可试 `python -m agentops.smoke` / `python -m agentops.http` |
+| `smoke` 失败或 HTTP 连不上 | 是否被防火墙拦截本机回环；换一台终端再跑 `agentops-smoke`；看输出里的 `FAIL:` 行 |
+| 页面能开但数据空 / 提示 Auth | 服务若配置了 `AGENTOPS_API_KEYS`，在调试页填同一 key 再 Reload；请求头用 `X-API-Key` 或 `Authorization: Bearer …` |
+| POST `/api/runs` 返回 400 | 读 JSON 里的 `error`：缺字段、非法 `environment`/`status`、终态缺 `ended_at` 最常见；对照上文「必填字段」 |
+| POST 返回「duplicate」/ already finalized | 同一 `id` 只能创建一次；`running` 只能再报一次终态。换新 `id` 或先查 `GET /api/runs/{id}` |
+| `--host 0.0.0.0` 启动直接报错 | 非本机绑定必须设置 `AGENTOPS_API_KEYS`（见上文「API Key」） |
+| 提示需要 `kafka-python` / `psycopg` | `pip install "agent-operations[kafka]"` 或 `[postgres]` |
+| SQLite / 文件权限错误 | `--db` 目录是否可写；不要把 DB 放在只读盘；多进程同时写同一 SQLite 文件可能锁库 |
+| 云上 502 / 连不上 | 安全组是否放行；是否只监听了 `127.0.0.1`；反代 HTTPS 是否指到 `agentops-http` 端口 |
+| Kafka 消费一直 `skip:` | 看 skip 后的原因：JSON 不是 `agentops.run` v1，或 payload 校验失败（与 ingest 相同规则） |
+
+快速自检命令：
+
+```powershell
+python -c "import agentops; print(agentops.__version__)"
+agentops-smoke
+```
+
 ## 限制（请先读）
 
 | 限制 | 说明 |

@@ -333,12 +333,21 @@ def serve(
     if host not in LOOPBACK_HOSTS and not keys:
         raise ValueError(
             "non-loopback bind requires API keys "
-            "(AGENTOPS_API_KEYS or AGENTOPS_API_KEYS_PATH)"
+            "(set AGENTOPS_API_KEYS or AGENTOPS_API_KEYS_PATH, "
+            "or use --host 127.0.0.1)"
         )
     # Keep DSN strings intact (Path() mangles postgresql:// on Windows).
     handler = make_handler(db_path, keys)
     server = ThreadingHTTPServer((host, port), handler)
     return server
+
+
+def _cli_exit(message: str, next_step: str, code: int = 1) -> None:
+    import sys
+
+    print(f"error: {message}", file=sys.stderr)
+    print(f"next: {next_step}", file=sys.stderr)
+    raise SystemExit(code)
 
 
 def main() -> None:
@@ -354,7 +363,26 @@ def main() -> None:
         help="SQLite path or postgresql:// DSN (env AGENTOPS_DATABASE_URL)",
     )
     args = parser.parse_args()
-    server = serve(args.host, args.port, args.db)
+    try:
+        server = serve(args.host, args.port, args.db)
+    except ValueError as exc:
+        _cli_exit(
+            str(exc),
+            "example: "
+            "$env:AGENTOPS_API_KEYS='{\"dev\":{\"projects\":[\"*\"]}}' "
+            "(PowerShell) then retry; see README troubleshooting",
+        )
+    except ImportError as exc:
+        _cli_exit(
+            str(exc),
+            'for Postgres: pip install "agent-operations[postgres]"',
+        )
+    except OSError as exc:
+        _cli_exit(
+            f"cannot bind or open db ({exc})",
+            "check --port is free and --db path is writable "
+            "(SQLite parent folder must exist or be creatable)",
+        )
     print(f"agent-operations on http://{args.host}:{args.port}  db={args.db}")
     try:
         server.serve_forever()
