@@ -85,6 +85,7 @@ class TestHttp(unittest.TestCase):
         status, body = self._json("POST", "/api/runs", {"id": "x"})
         self.assertEqual(status, 400)
         self.assertIn("error", body)
+        self.assertEqual(body.get("code"), "missing_fields")
 
     def test_home_page(self) -> None:
         with urllib.request.urlopen(self.base + "/") as resp:

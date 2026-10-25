@@ -390,7 +390,7 @@ agentops-http --host 0.0.0.0 --port 8787
 | `agentops-smoke` / `agentops-http` 不是命令 | 是否已 `pip install agent-operations`、是否激活了虚拟环境；Win 可试 `python -m agentops.smoke` / `python -m agentops.http` |
 | `smoke` 失败或 HTTP 连不上 | 是否被防火墙拦截本机回环；换一台终端再跑 `agentops-smoke`；看输出里的 `FAIL:` 行 |
 | 页面能开但数据空 / 提示 Auth | 服务若配置了 `AGENTOPS_API_KEYS`，在调试页填同一 key 再 Reload；请求头用 `X-API-Key` 或 `Authorization: Bearer …` |
-| POST `/api/runs` 返回 400 | 读 JSON 里的 `error`：缺字段、非法 `environment`/`status`、终态缺 `ended_at` 最常见；对照上文「必填字段」 |
+| POST `/api/runs` 返回 400 | 读 JSON 里的 `error` 与稳定字段 `code`（如 `missing_fields`、`invalid_status`、`missing_ended_at`）；对照上文「必填字段」 |
 | POST 返回「duplicate」/ already finalized | 同一 `id` 只能创建一次；`running` 只能再报一次终态。换新 `id` 或先查 `GET /api/runs/{id}` |
 | `--host 0.0.0.0` 启动直接报错 | 非本机绑定必须设置 `AGENTOPS_API_KEYS`（见上文「API Key」） |
 | 提示需要 `kafka-python` / `psycopg` | `pip install "agent-operations[kafka]"` 或 `[postgres]` |

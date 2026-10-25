@@ -12,6 +12,10 @@ from typing import Any
 class AuthError(PermissionError):
     """Missing/invalid credentials or project not allowed."""
 
+    def __init__(self, message: str, *, code: str = "auth_error") -> None:
+        super().__init__(message)
+        self.code = code
+
 
 @dataclass(frozen=True)
 class Principal:
@@ -27,7 +31,9 @@ class Principal:
 
     def require_project(self, project: str | None) -> None:
         if not self.allows_project(project):
-            raise AuthError(f"project not allowed: {project!r}")
+            raise AuthError(
+                f"project not allowed: {project!r}", code="project_not_allowed"
+            )
 
 
 def load_api_keys(
@@ -90,10 +96,10 @@ def authenticate(
         return None
     token = extract_api_key(headers)
     if not token:
-        raise AuthError("missing API key")
+        raise AuthError("missing API key", code="missing_api_key")
     principal = table.get(token)
     if principal is None:
-        raise AuthError("invalid API key")
+        raise AuthError("invalid API key", code="invalid_api_key")
     return principal
 
 

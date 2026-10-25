@@ -90,6 +90,10 @@ STEP_OPTIONAL = (
 class IngestError(ValueError):
     """Invalid payload or illegal run id transition."""
 
+    def __init__(self, message: str, *, code: str = "ingest_error") -> None:
+        super().__init__(message)
+        self.code = code
+
 
 def _as_json_text(value: Any) -> str | None:
     if value is None:
@@ -114,26 +118,29 @@ def _normalize_steps(raw_steps: Any) -> list[dict[str, Any]]:
     if raw_steps is None:
         return []
     if not isinstance(raw_steps, list):
-        raise IngestError("steps must be a list")
+        raise IngestError("steps must be a list", code="invalid_steps")
     steps: list[dict[str, Any]] = []
     seen_seq: set[int] = set()
     for item in raw_steps:
         if not isinstance(item, dict):
-            raise IngestError("each step must be an object")
+            raise IngestError("each step must be an object", code="invalid_steps")
         missing = [k for k in STEP_REQUIRED if k not in item or item[k] is None]
         if missing:
             raise IngestError(
-                f"step missing required fields: {', '.join(missing)}"
+                f"step missing required fields: {', '.join(missing)}",
+                code="missing_fields",
             )
         kind = item["kind"]
         if kind not in STEP_KINDS:
-            raise IngestError(f"invalid step kind: {kind!r}")
+            raise IngestError(f"invalid step kind: {kind!r}", code="invalid_step_kind")
         status = item["status"]
         if status not in STEP_STATUSES:
-            raise IngestError(f"invalid step status: {status!r}")
+            raise IngestError(
+                f"invalid step status: {status!r}", code="invalid_step_status"
+            )
         seq = int(item["seq"])
         if seq in seen_seq:
-            raise IngestError(f"duplicate step seq: {seq}")
+            raise IngestError(f"duplicate step seq: {seq}", code="duplicate_step_seq")
         seen_seq.add(seq)
 
         row: dict[str, Any] = {
@@ -239,42 +246,55 @@ def ingest_run(
     try:
         redact_mode = resolve_mode(redact)
     except ValueError as exc:
-        raise IngestError(str(exc)) from exc
+        raise IngestError(str(exc), code="invalid_redact") from exc
 
     missing = [k for k in REQUIRED if not payload.get(k)]
     if missing:
-        raise IngestError(f"missing required fields: {', '.join(missing)}")
+        raise IngestError(
+            f"missing required fields: {', '.join(missing)}",
+            code="missing_fields",
+        )
 
     env = payload["environment"]
     if env not in ENVIRONMENTS:
-        raise IngestError(f"invalid environment: {env!r}")
+        raise IngestError(f"invalid environment: {env!r}", code="invalid_environment")
 
     status = payload["status"]
     if status not in RUN_STATUSES:
-        raise IngestError(f"invalid status: {status!r}")
+        raise IngestError(f"invalid status: {status!r}", code="invalid_status")
 
     if status in FINAL_STATUSES and not payload.get("ended_at"):
-        raise IngestError("ended_at is required when status is final")
+        raise IngestError(
+            "ended_at is required when status is final",
+            code="missing_ended_at",
+        )
 
     trigger = payload.get("trigger")
     if trigger is not None and trigger not in TRIGGERS:
-        raise IngestError(f"invalid trigger: {trigger!r}")
+        raise IngestError(f"invalid trigger: {trigger!r}", code="invalid_trigger")
 
     finish = payload.get("finish_reason")
     if finish is not None and finish not in FINISH_REASONS:
-        raise IngestError(f"invalid finish_reason: {finish!r}")
+        raise IngestError(
+            f"invalid finish_reason: {finish!r}", code="invalid_finish_reason"
+        )
 
     thumbs = payload.get("thumbs")
     if thumbs is not None and thumbs not in THUMBS:
-        raise IngestError(f"invalid thumbs: {thumbs!r}")
+        raise IngestError(f"invalid thumbs: {thumbs!r}", code="invalid_thumbs")
 
     if "quality_score" in payload and payload["quality_score"] is not None:
         try:
             score = float(payload["quality_score"])
         except (TypeError, ValueError) as exc:
-            raise IngestError("quality_score must be a number") from exc
+            raise IngestError(
+                "quality_score must be a number", code="invalid_quality_score"
+            ) from exc
         if score < 0 or score > 1:
-            raise IngestError("quality_score must be between 0 and 1")
+            raise IngestError(
+                "quality_score must be between 0 and 1",
+                code="invalid_quality_score",
+            )
         payload = {**payload, "quality_score": score}
 
     steps = [
@@ -310,9 +330,13 @@ def ingest_run(
             _insert_run_and_steps(conn, row, steps)
             event_action = "finalize"
         elif existing["status"] == "running" and status == "running":
-            raise IngestError(f"run already running: {run_id!r}")
+            raise IngestError(
+                f"run already running: {run_id!r}", code="already_running"
+            )
         else:
-            raise IngestError(f"run already finalized: {run_id!r}")
+            raise IngestError(
+                f"run already finalized: {run_id!r}", code="already_finalized"
+            )
         conn.commit()
     except IngestError:
         conn.rollback()
@@ -320,7 +344,9 @@ def ingest_run(
     except Exception as exc:
         conn.rollback()
         if is_unique_violation(exc):
-            raise IngestError(f"duplicate run id: {run_id!r}") from exc
+            raise IngestError(
+                f"duplicate run id: {run_id!r}", code="duplicate_id"
+            ) from exc
         raise
 
     if emit and event_action is not None:

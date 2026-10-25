@@ -61,8 +61,16 @@ def run_fail_demo() -> int:
                     f"http://127.0.0.1:{port}/api/runs",
                     {"id": "incomplete-http"},
                 )
-                if status != 400 or "error" not in body:
-                    print("FAIL: expected HTTP 400 with error field", status, body)
+                if (
+                    status != 400
+                    or "error" not in body
+                    or body.get("code") != "missing_fields"
+                ):
+                    print(
+                        "FAIL: expected HTTP 400 code=missing_fields",
+                        status,
+                        body,
+                    )
                     return 1
                 print(f"ok: HTTP {status} -> {body}")
             finally:

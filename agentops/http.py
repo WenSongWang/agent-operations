@@ -180,6 +180,12 @@ def _json_bytes(data: Any, status: int = 200) -> tuple[int, bytes, str]:
     return status, body, "application/json; charset=utf-8"
 
 
+def _error_json(
+    message: str, *, code: str, status: int
+) -> tuple[int, bytes, str]:
+    return _json_bytes({"error": message, "code": code}, status)
+
+
 def make_handler(
     db_path: Path | str, api_keys: dict[str, Principal] | None = None
 ) -> type[BaseHTTPRequestHandler]:
@@ -265,36 +271,42 @@ def make_handler(
                         run_id = path[len("/api/runs/") :]
                         detail = get_run(conn, run_id)
                         if detail is None:
-                            status, body, ctype = _json_bytes(
-                                {"error": "not found"}, 404
+                            status, body, ctype = _error_json(
+                                "not found", code="not_found", status=404
                             )
                         elif principal is not None:
                             try:
                                 principal.require_project(detail.get("project"))
                                 status, body, ctype = _json_bytes(detail)
                             except AuthError:
-                                status, body, ctype = _json_bytes(
-                                    {"error": "not found"}, 404
+                                status, body, ctype = _error_json(
+                                    "not found", code="not_found", status=404
                                 )
                         else:
                             status, body, ctype = _json_bytes(detail)
                     else:
-                        status, body, ctype = _json_bytes(
-                            {"error": "not found"}, 404
+                        status, body, ctype = _error_json(
+                            "not found", code="not_found", status=404
                         )
                 finally:
                     conn.close()
             except AuthError as exc:
-                status, body, ctype = _json_bytes({"error": str(exc)}, 401)
+                status, body, ctype = _error_json(
+                    str(exc), code=exc.code, status=401
+                )
             except Exception as exc:  # noqa: BLE001
-                status, body, ctype = _json_bytes({"error": str(exc)}, 500)
+                status, body, ctype = _error_json(
+                    str(exc), code="internal_error", status=500
+                )
             self._send(status, body, ctype)
 
         def do_POST(self) -> None:  # noqa: N802
             parsed = urlparse(self.path)
             path = parsed.path.rstrip("/") or "/"
             if path != "/api/runs":
-                status, body, ctype = _json_bytes({"error": "not found"}, 404)
+                status, body, ctype = _error_json(
+                    "not found", code="not_found", status=404
+                )
                 self._send(status, body, ctype)
                 return
             length = int(self.headers.get("Content-Length", "0"))
@@ -303,7 +315,9 @@ def make_handler(
                 principal = self._principal()
                 payload = json.loads(raw.decode("utf-8"))
                 if not isinstance(payload, dict):
-                    raise IngestError("body must be a JSON object")
+                    raise IngestError(
+                        "body must be a JSON object", code="invalid_body"
+                    )
                 if principal is not None:
                     principal.require_project(payload.get("project"))
                 conn = open_db()
@@ -313,11 +327,17 @@ def make_handler(
                     conn.close()
                 status, body, ctype = _json_bytes({"id": run_id}, 201)
             except AuthError as exc:
-                status, body, ctype = _json_bytes({"error": str(exc)}, 401)
+                status, body, ctype = _error_json(
+                    str(exc), code=exc.code, status=401
+                )
             except IngestError as exc:
-                status, body, ctype = _json_bytes({"error": str(exc)}, 400)
+                status, body, ctype = _error_json(
+                    str(exc), code=exc.code, status=400
+                )
             except Exception as exc:  # noqa: BLE001
-                status, body, ctype = _json_bytes({"error": str(exc)}, 500)
+                status, body, ctype = _error_json(
+                    str(exc), code="internal_error", status=500
+                )
             self._send(status, body, ctype)
 
     return Handler

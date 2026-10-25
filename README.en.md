@@ -358,7 +358,7 @@ Use this symptom → check table first; if still stuck, include the **full error
 | `agentops-smoke` / `agentops-http` not found | Installed (`pip install agent-operations`)? venv activated? On Windows try `python -m agentops.smoke` / `python -m agentops.http` |
 | Smoke fails or HTTP unreachable | Local firewall; re-run `agentops-smoke` and read any `FAIL:` line |
 | Page loads but empty / auth hint | If `AGENTOPS_API_KEYS` is set, paste the same key on the debug page and Reload; send `X-API-Key` or `Authorization: Bearer …` |
-| POST `/api/runs` → 400 | Read JSON `error`: missing fields, bad `environment`/`status`, or final status without `ended_at` are most common |
+| POST `/api/runs` → 400 | Read JSON `error` and stable `code` (e.g. `missing_fields`, `invalid_status`, `missing_ended_at`) |
 | “duplicate” / already finalized | One create per `id`; a `running` run can be finalized once. Use a new `id` or `GET /api/runs/{id}` |
 | Crash on `--host 0.0.0.0` | Non-loopback bind requires `AGENTOPS_API_KEYS` |
 | Missing `kafka-python` / `psycopg` | `pip install "agent-operations[kafka]"` or `[postgres]` |
