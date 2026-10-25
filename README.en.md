@@ -371,6 +371,7 @@ Quick check:
 ```powershell
 python -c "import agentops; print(agentops.__version__)"
 agentops-smoke
+agentops-smoke --fail-demo   # intentional errors: learn IngestError / HTTP 400 shape
 ```
 
 ## Limits

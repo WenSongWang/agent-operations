@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 import tempfile
@@ -12,6 +13,7 @@ from pathlib import Path
 
 from agentops import __version__, connect, ingest_run, summarize_runs
 from agentops.http import serve
+from agentops.ingest import IngestError
 
 
 def _post_json(url: str, payload: dict) -> tuple[int, dict]:
@@ -34,7 +36,46 @@ def _post_json(url: str, payload: dict) -> tuple[int, dict]:
         return exc.code, parsed
 
 
-def main() -> int:
+def run_fail_demo() -> int:
+    """Show intentional failures so beginners learn to read errors."""
+    print(f"agent-operations {__version__}  fail-demo")
+    print("These errors are EXPECTED. Learn the shape, then fix real bugs the same way.\n")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        db = Path(tmp) / "fail-demo.db"
+        conn = connect(db)
+        try:
+            try:
+                ingest_run(conn, {"id": "incomplete"})
+                print("FAIL: incomplete ingest should raise IngestError")
+                return 1
+            except IngestError as exc:
+                print(f"ok: Python IngestError -> {exc}")
+
+            server = serve("127.0.0.1", 0, db)
+            port = server.server_address[1]
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                status, body = _post_json(
+                    f"http://127.0.0.1:{port}/api/runs",
+                    {"id": "incomplete-http"},
+                )
+                if status != 400 or "error" not in body:
+                    print("FAIL: expected HTTP 400 with error field", status, body)
+                    return 1
+                print(f"ok: HTTP {status} -> {body}")
+            finally:
+                server.shutdown()
+                server.server_close()
+        finally:
+            conn.close()
+
+    print("\nfail-demo passed — when you see similar messages for real, check README troubleshooting")
+    return 0
+
+
+def run_smoke() -> int:
     print(f"agent-operations {__version__}  python {sys.version.split()[0]}")
     print(f"platform: {sys.platform}")
 
@@ -103,6 +144,21 @@ def main() -> int:
 
     print("smoke passed")
     return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Smoke-test agent-operations (happy path or fail-demo)"
+    )
+    parser.add_argument(
+        "--fail-demo",
+        action="store_true",
+        help="Show intentional IngestError / HTTP 400 so you learn error shape",
+    )
+    args = parser.parse_args()
+    if args.fail_demo:
+        return run_fail_demo()
+    return run_smoke()
 
 
 if __name__ == "__main__":

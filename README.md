@@ -403,6 +403,7 @@ agentops-http --host 0.0.0.0 --port 8787
 ```powershell
 python -c "import agentops; print(agentops.__version__)"
 agentops-smoke
+agentops-smoke --fail-demo   # 故意触发错误，学习 IngestError / HTTP 400 长什么样
 ```
 
 ## 限制（请先读）
