@@ -384,7 +384,7 @@ agentops-smoke --fail-demo   # intentional errors: learn IngestError / HTTP 400 
 | Not full APM | Agent runs + steps only |
 | Kafka | Optional producer/consumer; no embedded broker |
 | UI | Read-only debug page |
-| Install | PyPI: https://pypi.org/project/agent-operations/ / tag `v0.1.6` |
+| Install | PyPI: https://pypi.org/project/agent-operations/ / tag `v0.1.7` |
 
 See [ROADMAP.md](./ROADMAP.md).
 

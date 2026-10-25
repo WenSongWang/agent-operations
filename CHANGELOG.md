@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.7] - 2026-10-25
+
+### Added
+
+- `agentops-smoke --fail-demo` to learn intentional IngestError / HTTP 400 shapes
+- Stable JSON `code` on HTTP errors (e.g. `missing_fields`, `missing_api_key`, `not_found`)
+
 ## [0.1.6] - 2026-10-25
 
 ### Added

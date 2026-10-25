@@ -416,7 +416,7 @@ agentops-smoke --fail-demo   # 故意触发错误，学习 IngestError / HTTP 40
 | 非全链路 APM | 聚焦 agent run + steps，不是通用分布式 tracing |
 | Kafka | JSONL outbox + 可选 producer / `agentops-kafka` consumer；无内置 broker |
 | 页面 | 只读调试页；可填 API key 后查询 |
-| 安装渠道 | PyPI：`pip install agent-operations`；版本见 [PyPI](https://pypi.org/project/agent-operations/) / tag `v0.1.6` |
+| 安装渠道 | PyPI：`pip install agent-operations`；版本见 [PyPI](https://pypi.org/project/agent-operations/) / tag `v0.1.7` |
 
 更细的后续项见 [ROADMAP.md](./ROADMAP.md)。
 
@@ -438,7 +438,7 @@ agentops-http
 ```powershell
 uv venv .venv-release --clear
 .\.venv-release\Scripts\Activate.ps1
-uv pip install "agent-operations==0.1.6"
+uv pip install "agent-operations==0.1.7"
 ```
 
 库入口常用符号：`connect`, `ingest_run`, `list_runs`, `summarize_runs`, `get_run`, `list_tool_failures`, `TracedRun`。
