@@ -10,7 +10,7 @@ SQLite ingest · list/filter · latency/tokens/cost summary (p50/p95/p99) · too
 | :--- | :--- | :--- |
 | 13 | In-progress runs | Done: `running` → final update on same `id` |
 | 14 | Redaction | Done: `AGENTOPS_REDACT` / `redact=` → off\|hash\|drop |
-| 15 | Postgres | Done: `connect("postgresql://…")` + `?` compat; `agentops-http --db` / `AGENTOPS_DATABASE_URL` |
+| 15 | Postgres | Done: Postgres + MySQL/MariaDB DSNs (`[postgres]` / `[mysql]`) + `?` compat |
 | 16 | Pricing table | Done: built-in rates + `AGENTOPS_PRICING_PATH`; caller `cost_usd` wins |
 | 17 | Alerts | Done: webhook + optional SMTP email on failure rate / p95 / cost |
 | 18 | Kafka upgrade | Done: JSONL outbox + producer + `agentops-kafka` consumer (`emit=False`) |

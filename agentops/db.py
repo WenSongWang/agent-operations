@@ -111,32 +111,49 @@ RUN_INDEXES: tuple[tuple[str, str], ...] = (
 
 
 def _qmark_sql(sql: str) -> str:
-    """Translate SQLite '?' placeholders to psycopg '%s'."""
+    """Translate SQLite '?' placeholders to '%s' (psycopg / PyMySQL)."""
     return sql.replace("?", "%s")
 
 
 def is_unique_violation(exc: BaseException) -> bool:
-    """True for SQLite / Postgres duplicate-key style errors."""
+    """True for SQLite / Postgres / MySQL duplicate-key style errors."""
     if isinstance(exc, sqlite3.IntegrityError):
         return True
     try:
         from psycopg.errors import UniqueViolation  # type: ignore[import-untyped]
+
+        if isinstance(exc, UniqueViolation):
+            return True
     except ImportError:
-        return False
-    return isinstance(exc, UniqueViolation)
+        pass
+    try:
+        from pymysql.err import IntegrityError as MySQLIntegrityError  # type: ignore[import-untyped]
+
+        if isinstance(exc, MySQLIntegrityError):
+            return getattr(exc, "args", [None])[0] == 1062 or "Duplicate" in str(exc)
+    except ImportError:
+        pass
+    return False
 
 
-class PgCompatConnection:
+class DictCompatConnection:
     """Thin wrapper: same execute('...?', params) API as sqlite3."""
 
     def __init__(self, conn: Any) -> None:
         self._conn = conn
 
     def execute(self, sql: str, params: Sequence[Any] | None = None) -> Any:
-        # psycopg already opens a transaction; mirror sqlite's explicit BEGIN.
+        # Server drivers often auto-open a transaction; mirror sqlite BEGIN.
         if sql.strip().upper() == "BEGIN":
-            return self._conn.cursor()
-        return self._conn.execute(_qmark_sql(sql), params)
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN")
+            except Exception:
+                pass
+            return cur
+        cur = self._conn.cursor()
+        cur.execute(_qmark_sql(sql), params or ())
+        return cur
 
     def commit(self) -> None:
         self._conn.commit()
@@ -146,6 +163,10 @@ class PgCompatConnection:
 
     def close(self) -> None:
         self._conn.close()
+
+
+# Backward-compatible alias
+PgCompatConnection = DictCompatConnection
 
 
 def _migrate_sqlite(conn: sqlite3.Connection) -> None:
@@ -182,10 +203,20 @@ def _migrate_sqlite(conn: sqlite3.Connection) -> None:
             )
 
 
-def _migrate_pg(conn: Any) -> None:
+def _ensure_index(conn: Any, ddl: str) -> None:
+    try:
+        conn.execute(ddl)
+    except Exception as exc:  # noqa: BLE001 — MySQL may lack IF NOT EXISTS
+        msg = str(exc).lower()
+        if "duplicate" in msg or "already exists" in msg:
+            return
+        raise
+
+
+def _migrate_info_schema(conn: Any, *, schema_sql: str) -> None:
     rows = conn.execute(
         "SELECT column_name AS name FROM information_schema.columns "
-        "WHERE table_schema = current_schema() AND table_name = 'runs'"
+        f"WHERE table_schema = {schema_sql} AND table_name = 'runs'"
     ).fetchall()
     existing = {row["name"] for row in rows}
     for name, col_type in RUN_COLUMN_MIGRATIONS:
@@ -195,32 +226,42 @@ def _migrate_pg(conn: Any) -> None:
 
     for index_name, column in RUN_INDEXES:
         if column in existing:
-            conn.execute(
-                f"CREATE INDEX IF NOT EXISTS {index_name} ON runs({column})"
+            _ensure_index(
+                conn,
+                f"CREATE INDEX IF NOT EXISTS {index_name} ON runs({column})",
             )
 
     step_rows = conn.execute(
         "SELECT column_name AS name FROM information_schema.columns "
-        "WHERE table_schema = current_schema() AND table_name = 'steps'"
+        f"WHERE table_schema = {schema_sql} AND table_name = 'steps'"
     ).fetchall()
     step_cols = {row["name"] for row in step_rows}
     if step_cols:
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_steps_run_id ON steps(run_id)"
+        _ensure_index(
+            conn, "CREATE INDEX IF NOT EXISTS idx_steps_run_id ON steps(run_id)"
         )
         if "kind" in step_cols and "name" in step_cols:
-            conn.execute(
+            _ensure_index(
+                conn,
                 "CREATE INDEX IF NOT EXISTS idx_steps_kind_name "
-                "ON steps(kind, name)"
+                "ON steps(kind, name)",
             )
         if "error_type" in step_cols:
-            conn.execute(
+            _ensure_index(
+                conn,
                 "CREATE INDEX IF NOT EXISTS idx_steps_error_type "
-                "ON steps(error_type)"
+                "ON steps(error_type)",
             )
 
 
-def connect_postgres(dsn: str) -> PgCompatConnection:
+def _apply_schema(wrapped: DictCompatConnection) -> None:
+    for stmt in TABLES.split(";"):
+        sql = stmt.strip()
+        if sql:
+            wrapped.execute(sql)
+
+
+def connect_postgres(dsn: str) -> DictCompatConnection:
     """Open Postgres (psycopg3) and ensure schema exists."""
     try:
         import psycopg
@@ -231,23 +272,57 @@ def connect_postgres(dsn: str) -> PgCompatConnection:
             'pip install "agent-operations[postgres]"'
         ) from exc
     raw = psycopg.connect(dsn, row_factory=dict_row)
-    wrapped = PgCompatConnection(raw)
-    for stmt in TABLES.split(";"):
-        sql = stmt.strip()
-        if sql:
-            wrapped.execute(sql)
-    _migrate_pg(wrapped)
+    wrapped = DictCompatConnection(raw)
+    _apply_schema(wrapped)
+    _migrate_info_schema(wrapped, schema_sql="current_schema()")
     wrapped.commit()
     return wrapped
 
 
-def connect(path: str | Path) -> sqlite3.Connection | PgCompatConnection:
-    """Open SQLite file, or Postgres when path/DSN is postgresql://…"""
+def connect_mysql(dsn: str) -> DictCompatConnection:
+    """Open MySQL/MariaDB (PyMySQL) and ensure schema exists."""
+    from urllib.parse import unquote, urlparse
+
+    try:
+        import pymysql
+        from pymysql.cursors import DictCursor
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError(
+            "MySQL needs PyMySQL; "
+            'pip install "agent-operations[mysql]"'
+        ) from exc
+    # Accept mysql://user:pass@host:3306/db
+    parsed = urlparse(dsn)
+    if parsed.scheme not in ("mysql", "mariadb"):
+        raise ValueError(f"unsupported MySQL DSN scheme: {parsed.scheme!r}")
+    raw = pymysql.connect(
+        host=parsed.hostname or "localhost",
+        port=parsed.port or 3306,
+        user=unquote(parsed.username or ""),
+        password=unquote(parsed.password or ""),
+        database=(parsed.path or "/").lstrip("/") or None,
+        charset="utf8mb4",
+        cursorclass=DictCursor,
+        autocommit=False,
+    )
+    wrapped = DictCompatConnection(raw)
+    _apply_schema(wrapped)
+    _migrate_info_schema(wrapped, schema_sql="DATABASE()")
+    wrapped.commit()
+    return wrapped
+
+
+def connect(
+    path: str | Path,
+) -> sqlite3.Connection | DictCompatConnection:
+    """Open SQLite file, or Postgres/MySQL when given a DSN."""
     target = str(path).strip()
     if not target:
         target = os.environ.get("AGENTOPS_DATABASE_URL", "").strip()
     if target.startswith(("postgres://", "postgresql://")):
         return connect_postgres(target)
+    if target.startswith(("mysql://", "mariadb://")):
+        return connect_mysql(target)
 
     db_path = Path(target)
     db_path.parent.mkdir(parents=True, exist_ok=True)

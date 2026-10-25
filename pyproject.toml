@@ -30,6 +30,7 @@ openai = ["openai>=1.40.0"]
 langgraph = ["langgraph>=0.2.0"]
 kafka = ["kafka-python>=2.0.2"]
 postgres = ["psycopg[binary]>=3.1"]
+mysql = ["PyMySQL>=1.1.0"]
 
 [project.urls]
 Homepage = "https://github.com/WenSongWang/agent-operations"

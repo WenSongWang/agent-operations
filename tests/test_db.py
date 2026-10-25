@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from agentops.db import (
+    DictCompatConnection,
     PgCompatConnection,
     _qmark_sql,
     connect,
@@ -102,16 +103,14 @@ class TestDb(unittest.TestCase):
         self.assertFalse(is_unique_violation(ValueError("nope")))
 
     def test_pg_compat_begin_and_qmark(self) -> None:
+        cur = mock.MagicMock()
         raw = mock.MagicMock()
-        raw.cursor.return_value = "cursor"
-        raw.execute.return_value = "exec"
-        pg = PgCompatConnection(raw)
-        self.assertEqual(pg.execute("BEGIN"), "cursor")
-        raw.execute.assert_not_called()
+        raw.cursor.return_value = cur
+        pg = DictCompatConnection(raw)
+        out = pg.execute("BEGIN")
+        self.assertIs(out, cur)
         pg.execute("SELECT * FROM runs WHERE id = ?", ("r1",))
-        raw.execute.assert_called_once_with(
-            "SELECT * FROM runs WHERE id = %s", ("r1",)
-        )
+        cur.execute.assert_any_call("SELECT * FROM runs WHERE id = %s", ("r1",))
 
     def test_connect_routes_postgres_dsn(self) -> None:
         sentinel = object()
@@ -121,6 +120,16 @@ class TestDb(unittest.TestCase):
             out = connect("postgresql://localhost/agentops")
         self.assertIs(out, sentinel)
         m.assert_called_once_with("postgresql://localhost/agentops")
+
+    def test_connect_routes_mysql_dsn(self) -> None:
+        sentinel = object()
+        with mock.patch(
+            "agentops.db.connect_mysql", return_value=sentinel
+        ) as m:
+            out = connect("mysql://user:pass@localhost:3306/agentops")
+        self.assertIs(out, sentinel)
+        m.assert_called_once_with("mysql://user:pass@localhost:3306/agentops")
+        self.assertIs(PgCompatConnection, DictCompatConnection)
 
 
 if __name__ == "__main__":

@@ -389,7 +389,7 @@ def main() -> None:
     except ImportError as exc:
         cli_exit(
             str(exc),
-            'for Postgres: pip install "agent-operations[postgres]"',
+            'pip install "agent-operations[postgres]" or [mysql]',
         )
     except OSError as exc:
         cli_exit(
