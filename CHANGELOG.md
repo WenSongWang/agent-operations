@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.6] - 2026-10-25
+
+### Added
+
+- README troubleshooting (“出问题了？” / Something went wrong?)
+- Friendlier CLI errors (`error:` + `next:`) for `agentops-http`, `agentops-alerts`, `agentops-kafka`
+- Shared `agentops.cliutil.cli_exit`
+- README: SQLite vs Postgres choice table (DIY storage options)
+
 ## [0.1.5] - 2026-10-25
 
 ### Added

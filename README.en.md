@@ -383,7 +383,7 @@ agentops-smoke
 | Not full APM | Agent runs + steps only |
 | Kafka | Optional producer/consumer; no embedded broker |
 | UI | Read-only debug page |
-| Install | PyPI：https://pypi.org/project/agent-operations/ / tag `v0.1.5` |
+| Install | PyPI: https://pypi.org/project/agent-operations/ / tag `v0.1.6` |
 
 See [ROADMAP.md](./ROADMAP.md).
 
