@@ -10,7 +10,7 @@ from agentops.query import (
 )
 from agentops.trace import TracedRun, usage_from_openai
 
-__version__ = "0.1.7"
+__version__ = "0.1.8"
 
 __all__ = [
     "IngestError",

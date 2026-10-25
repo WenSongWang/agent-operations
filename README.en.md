@@ -379,12 +379,12 @@ agentops-smoke --fail-demo   # intentional errors: learn IngestError / HTTP 400 
 | Limit | Notes |
 | :--- | :--- |
 | Alpha | APIs may evolve |
-| DB | SQLite default; Postgres via DSN / `AGENTOPS_DATABASE_URL` |
+| DB | SQLite default; also `postgresql://` (`[postgres]`) or `mysql://` (`[mysql]`) |
 | Self-reported metrics | Not vendor invoices |
 | Not full APM | Agent runs + steps only |
 | Kafka | Optional producer/consumer; no embedded broker |
 | UI | Read-only debug page |
-| Install | PyPI: https://pypi.org/project/agent-operations/ / tag `v0.1.7` |
+| Install | PyPI: https://pypi.org/project/agent-operations/ / tag `v0.1.8` |
 
 See [ROADMAP.md](./ROADMAP.md).
 

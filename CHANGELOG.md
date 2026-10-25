@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.8] - 2026-10-25
+
+### Added
+
+- Optional MySQL/MariaDB via `mysql://` / `mariadb://` and `pip install "agent-operations[mysql]"` (PyMySQL)
+
 ## [0.1.7] - 2026-10-25
 
 ### Added
