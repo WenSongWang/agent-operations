@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.5] - 2026-10-25
+
+### Added
+
+- `agentops-smoke` console script + `scripts/smoke.py` for beginner verification
+- README: who should use this, cloud deploy for other services, platform notes (Win/macOS/Linux/iOS)
+- English docs: [README.en.md](./README.en.md)
+
 ## [0.1.4] - 2026-10-25
 
 ### Added
