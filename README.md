@@ -11,13 +11,77 @@ Lightweight and self-hostable. Default storage is one SQLite file. No ClickHouse
 | Default UI | http://127.0.0.1:8787 |
 | Default DB | `./data/agentops.db` |
 
+## 什么人该用 / 不该用
+
+一句话：这是**最小可自托管的 Agent 运行账本**，不是完整的 LLMOps 云平台。
+
+| 更适合你，如果… | 更该选别的（如 Langfuse / 云厂商控制台），如果… |
+| :--- | :--- |
+| 已有 agent 代码，只想记 run / steps / 延迟 / token / 费用 / 失败 | 要漂亮的团队 UI、Prompt 实验、人人点选的分析台 |
+| 想本机或内网跑，不想注册 SaaS、不想养 ClickHouse | 要开箱即用、教程最多、出问题好搜 |
+| `pip` 一个包就能塞进现有循环 | 要托管采集、多区域、厂商级账单对账 |
+| 单机 SQLite 就够；长大再迁 Postgres | 一上来就要多租户产品级登录与权限中心 |
+
+小白路径建议：本机 `pip install agent-operations` → `python scripts/smoke.py`（应打印 `smoke passed`）→ `examples/quickstart.py` → `agentops-http` 看页面；确认有用再考虑云上部署。
+
+### 系统要求（Windows / macOS / Linux / iOS）
+
+| 环境 | 能否顺利用 | 说明 |
+| :--- | :--- | :--- |
+| Windows | 可以 | PowerShell / cmd；推荐 Python 3.11+ 与 [uv](https://github.com/astral-sh/uv) |
+| macOS | 可以 | Terminal；同上 |
+| Linux | 可以 | 发行版自带或官方 Python 3.11+ |
+| iPhone / iPad (iOS) | **不作为安装端** | 不能在手机里 `pip install` 跑服务；手机浏览器可打开**你已部署好的**调试页；App 只能当 HTTP **客户端**上报 run |
+
+核心依赖是 **Python 3.11+**，三桌面系统等价。云上部署后，任意能发 HTTPS 的客户端（含 iOS App）都能用，与本机是否装过本包装无关。
+
+## 部署到云给其它服务用
+
+可以。其它云上的 agent **不**用把库装进对方机器里；只要能 HTTP 访问你的 `agentops-http`，把 run `POST` 过来即可。
+
+```text
+[云 A 上的 agent] --HTTPS POST /api/runs--> [你部署的 agentops-http + DB]
+[云 B 上的 worker] --同上-------------------┘
+```
+
+最小云上步骤（任意 VPS / 容器均可）：
+
+```powershell
+pip install "agent-operations[postgres]"   # 多机或托管库时建议 Postgres；单机也可用 SQLite 盘
+$env:AGENTOPS_API_KEYS = '{"svc-a":{"projects":["demo"]},"admin":{"projects":["*"]}}'
+# 多实例共享库时：
+# $env:AGENTOPS_DATABASE_URL = "postgresql://user:pass@host:5432/agentops"
+agentops-http --host 0.0.0.0 --port 8787 --db $env:AGENTOPS_DATABASE_URL
+```
+
+前面加 Nginx / Caddy 做 **HTTPS**，对外只暴露 443。调用方示例：
+
+```powershell
+curl -s https://agentops.example.com/api/runs `
+  -H "X-API-Key: svc-a" -H "Content-Type: application/json" `
+  -d '{"id":"run-cloud-1","project":"demo","agent":"assistant","environment":"prd","name":"job","status":"ok","started_at":"2026-10-25T04:00:00+00:00","ended_at":"2026-10-25T04:00:01+00:00"}'
+```
+
+云上注意：
+
+| 点 | 说明 |
+| :--- | :--- |
+| 鉴权 | 非本机绑定**必须**配置 API key；密钥当密码保管 |
+| 库 | SQLite = 单实例 + 持久盘；多机写同一数据用 Postgres |
+| 职责 | 只记账本，不替你调 OpenAI；各服务仍直连自己的 LLM |
+| 安全 | 不要把 `--host 0.0.0.0` 裸奔在公网无 HTTPS / 无密钥 |
+
 ## 5 分钟上手
 
-### 1. 安装
+### 1. 安装并冒烟
 
 ```powershell
 python -m pip install agent-operations
+# 仓库内（或 clone 后）：
+python scripts/smoke.py
 ```
+
+看到 `smoke passed` 即本机链路正常（Win / macOS / Linux 同一命令）。
 
 从源码开发（推荐 **uv**）：
 
