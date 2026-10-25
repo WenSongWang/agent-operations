@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4] - 2026-10-25
+
+### Added
+
+- `agentops-kafka` consumer: ingest `agentops.run` events with `emit=False` (no re-publish loop)
+- `ingest_run(..., emit=False)` for sink / consumer paths
+
 ## [0.1.3] - 2026-10-24
 
 ### Added
