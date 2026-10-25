@@ -37,6 +37,18 @@ Lightweight and self-hostable. Default storage is one SQLite file. No ClickHouse
 
 核心依赖是 **Python 3.11+**，三桌面系统等价。云上部署后，任意能发 HTTPS 的客户端（含 iOS App）都能用，与本机是否装过本包装无关。
 
+## 选库（SQLite / Postgres）
+
+「多版本」在这里指：**自己选存储**，用难度和成本换规模——不是商业套餐。
+
+| 选 | 适合 | 成本 / 难度 | 怎么用 |
+| :--- | :--- | :--- | :--- |
+| **SQLite**（默认） | 本机、单机部署、读写不重 | 最低：无额外中间件 | `connect("./data/agentops.db")` 或 `agentops-http --db ...` |
+| **Postgres** | 多个服务共写同一账本、要用云厂商托管库、要常规备份/复制 | 中：多一个库实例 + `pip install "agent-operations[postgres]"` | `connect("postgresql://…")` / `--db` / `AGENTOPS_DATABASE_URL` |
+| **MySQL 等** | 环境里已有 MySQL、不想上 Postgres | — | **暂不支持**；需要时再说，避免假灵活 |
+
+建议：先 SQLite 跑通；只有出现「多机同时写」或「运维规定必须托管库」再迁 Postgres。不要为了「看起来专业」一上来上集群。
+
 ## 部署到云给其它服务用
 
 可以。其它云上的 agent **不**用把库装进对方机器里；只要能 HTTP 访问你的 `agentops-http`，把 run `POST` 过来即可。

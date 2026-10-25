@@ -245,6 +245,8 @@ def check_alerts(
 def main() -> None:
     import argparse
 
+    from agentops.cliutil import cli_exit
+
     parser = argparse.ArgumentParser(description="Check agentops alert thresholds")
     parser.add_argument("--db", default=str(DEFAULT_DB))
     parser.add_argument("--webhook", default=None)
@@ -254,16 +256,33 @@ def main() -> None:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    conn = connect(args.db)
     try:
-        alerts = check_alerts(
-            conn,
-            webhook=args.webhook,
-            notify=not args.dry_run,
-            project=args.project,
-            agent=args.agent,
-            environment=args.environment,
+        conn = connect(args.db)
+    except ImportError as exc:
+        cli_exit(
+            str(exc),
+            'for Postgres: pip install "agent-operations[postgres]"',
         )
+    except OSError as exc:
+        cli_exit(
+            f"cannot open db ({exc})",
+            "check --db path is writable, or set a valid AGENTOPS_DATABASE_URL",
+        )
+    try:
+        try:
+            alerts = check_alerts(
+                conn,
+                webhook=args.webhook,
+                notify=not args.dry_run,
+                project=args.project,
+                agent=args.agent,
+                environment=args.environment,
+            )
+        except (urllib.error.URLError, urllib.error.HTTPError, OSError) as exc:
+            cli_exit(
+                f"webhook notify failed ({exc})",
+                "check AGENTOPS_ALERT_WEBHOOK / --webhook URL, or use --dry-run",
+            )
     finally:
         conn.close()
 

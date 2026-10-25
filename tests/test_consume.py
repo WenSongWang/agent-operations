@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -96,6 +97,28 @@ class TestConsume(unittest.TestCase):
                 self.assertIsNotNone(get_run(conn, "p1"))
             finally:
                 conn.close()
+
+    def test_main_missing_bootstrap_prints_next(self) -> None:
+        import io
+        from contextlib import redirect_stderr
+
+        from agentops import consume as consume_mod
+
+        buf = io.StringIO()
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("AGENTOPS_KAFKA_BOOTSTRAP", None)
+            with mock.patch(
+                "sys.argv",
+                ["agentops-kafka", "--db", str(Path(tempfile.mkdtemp()) / "x.db")],
+            ):
+                with redirect_stderr(buf):
+                    with self.assertRaises(SystemExit) as ctx:
+                        consume_mod.main()
+        self.assertEqual(ctx.exception.code, 1)
+        err = buf.getvalue()
+        self.assertIn("error:", err)
+        self.assertIn("next:", err)
+        self.assertIn("KAFKA", err.upper())
 
     def test_process_duplicate_is_ingest_error(self) -> None:
         event = make_run_event(

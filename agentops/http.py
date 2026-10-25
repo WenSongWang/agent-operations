@@ -342,17 +342,11 @@ def serve(
     return server
 
 
-def _cli_exit(message: str, next_step: str, code: int = 1) -> None:
-    import sys
-
-    print(f"error: {message}", file=sys.stderr)
-    print(f"next: {next_step}", file=sys.stderr)
-    raise SystemExit(code)
-
-
 def main() -> None:
     import argparse
     import os
+
+    from agentops.cliutil import cli_exit
 
     parser = argparse.ArgumentParser(description="agent-operations local server")
     parser.add_argument("--host", default=DEFAULT_HOST)
@@ -366,19 +360,19 @@ def main() -> None:
     try:
         server = serve(args.host, args.port, args.db)
     except ValueError as exc:
-        _cli_exit(
+        cli_exit(
             str(exc),
             "example: "
             "$env:AGENTOPS_API_KEYS='{\"dev\":{\"projects\":[\"*\"]}}' "
             "(PowerShell) then retry; see README troubleshooting",
         )
     except ImportError as exc:
-        _cli_exit(
+        cli_exit(
             str(exc),
             'for Postgres: pip install "agent-operations[postgres]"',
         )
     except OSError as exc:
-        _cli_exit(
+        cli_exit(
             f"cannot bind or open db ({exc})",
             "check --port is free and --db path is writable "
             "(SQLite parent folder must exist or be creatable)",

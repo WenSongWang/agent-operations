@@ -139,6 +139,8 @@ def run_consumer(
 def main() -> None:
     import argparse
 
+    from agentops.cliutil import cli_exit
+
     parser = argparse.ArgumentParser(
         description="Consume agentops.run Kafka events into the local DB"
     )
@@ -161,13 +163,31 @@ def main() -> None:
         help="Stop after N applied messages (default: run forever)",
     )
     args = parser.parse_args()
-    n = run_consumer(
-        db=args.db,
-        bootstrap=args.bootstrap,
-        topic=args.topic,
-        group_id=args.group_id,
-        max_messages=args.max_messages,
-    )
+    try:
+        n = run_consumer(
+            db=args.db,
+            bootstrap=args.bootstrap,
+            topic=args.topic,
+            group_id=args.group_id,
+            max_messages=args.max_messages,
+        )
+    except ValueError as exc:
+        cli_exit(
+            str(exc),
+            "set AGENTOPS_KAFKA_BOOTSTRAP=localhost:9092 "
+            "(and pip install \"agent-operations[kafka]\")",
+        )
+    except ImportError as exc:
+        cli_exit(
+            str(exc),
+            'pip install "agent-operations[kafka]" '
+            '(or [postgres] if the error mentions psycopg)',
+        )
+    except OSError as exc:
+        cli_exit(
+            f"cannot open db or reach Kafka ({exc})",
+            "check --db, bootstrap host/port, and network/firewall",
+        )
     print(f"applied {n} message(s)")
 
 

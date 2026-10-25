@@ -37,6 +37,18 @@ Beginner path: `pip install agent-operations` → `agentops-smoke` (expect `smok
 
 Core dependency is **Python 3.11+** on the three desktop OSes. After cloud deploy, any HTTPS client (including iOS apps) can post runs without installing this package locally.
 
+## Choosing a database (SQLite / Postgres)
+
+“Multiple options” here means **you pick the storage** to trade difficulty and cost for scale — not commercial SKUs.
+
+| Choose | When | Cost / difficulty | How |
+| :--- | :--- | :--- | :--- |
+| **SQLite** (default) | Localhost, single node, light write load | Lowest: no extra middleware | `connect("./data/agentops.db")` or `agentops-http --db ...` |
+| **Postgres** | Several services share one ledger, managed cloud DB, normal backup/replica needs | Medium: one DB instance + `pip install "agent-operations[postgres]"` | `connect("postgresql://…")` / `--db` / `AGENTOPS_DATABASE_URL` |
+| **MySQL, etc.** | You already run MySQL and refuse Postgres | — | **Not supported yet**; add only when needed |
+
+Start with SQLite. Move to Postgres only when you need multi-writer sharing or a mandated managed database.
+
 ## Deploy on a cloud host for other services
 
 Yes. Other agents do **not** need this library on their machines — only HTTP access to your `agentops-http`, then `POST` runs.
